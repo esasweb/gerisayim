@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "496877377379",
+    "project_id": "gerisayim-649a3",
+    "storage_bucket": "gerisayim-649a3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:496877377379:android:501eec62794d4145dc6556",
+        "android_client_info": {
+          "package_name": "com.gerisayim.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAaSLSjCSuWMSxqjVIVl6UBMmIy-6enk0A"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
