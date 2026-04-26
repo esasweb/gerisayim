@@ -1,6 +1,6 @@
 name: gerisayim
 description: "Geri Sayım Uygulaması"
-version: 1.0.5+5
+version: 1.0.6+6
 publish_to: 'none'
 
 environment:
@@ -22,6 +22,7 @@ dependencies:
 
   # ADS
   google_mobile_ads: ^5.1.0
+  app_tracking_transparency: ^2.0.4
 
   # STORAGE & DEVICE
   shared_preferences: ^2.2.3

@@ -22,6 +22,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:torch_light/torch_light.dart';
 import 'package:gerisayim/l10n/app_localizations.dart';
+import 'package:app_tracking_transparency/app_tracking_transparency.dart';
 
 
 final FlutterLocalNotificationsPlugin localNotifications =
@@ -50,7 +51,7 @@ WidgetsFlutterBinding.ensureInitialized();
     android: AudioContextAndroid(),
   );
   AudioPlayer.global.setAudioContext(audioContext);
-
+ 
   await Firebase.initializeApp(
     options: FirebaseOptions(
       apiKey: "AIzaSyAaSLSjCSuWMSxqjVIVl6UBMmIy-6enk0A",
@@ -65,6 +66,12 @@ WidgetsFlutterBinding.ensureInitialized();
   );
 
   FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
+
+
+if (Platform.isIOS) {
+  final status = await AppTrackingTransparency.requestTrackingAuthorization();
+}
+
 
 const androidInit = AndroidInitializationSettings('@mipmap/launcher_icon');
 
@@ -225,12 +232,7 @@ DateTime? _introStartTime;
 void initState() {
   super.initState();
 
-  _startPlayer.onPlayerComplete.listen((_) async {
-    if (!mounted) return;
-    if (_soundEnabled) {
-      await _resumeAllSounds();
-    }
-  });
+ 
 
   _splashController = AnimationController(
     vsync: this,
@@ -238,15 +240,21 @@ void initState() {
   )..repeat(reverse: true);
 
 AudioCache.instance = AudioCache(prefix: 'assets/');
-Future.microtask(() async {
-  await _startPlayer.setSource(AssetSource('icon/start.mp3'));
-  await _bgPlayer.setSource(AssetSource('icon/back.mp3'));
-});
+
 
   _startBackgroundMusic();
+  // 🔥 BURAYA EKLE
+Future.delayed(const Duration(milliseconds: 300), () {
+  _startPlayer.play(AssetSource('icon/start.mp3'), volume: 0);
+});
   _startRandomFlashEffect();
   _initApp();
   _loadRewardedAd();
+
+Future.delayed(const Duration(seconds: 2), () {
+  if (mounted) _loadRewardedAd();
+});
+
   _loadInterstitialAd();
   _listenNotificationClicks();
 }
@@ -274,9 +282,11 @@ void _stopFlashEffect() {
 Future<void> _playStartSound() async {
   try {
     await _startPlayer.stop();
-    await _startPlayer.setPlayerMode(PlayerMode.lowLatency);
+
+    await _startPlayer.setReleaseMode(ReleaseMode.stop);
     await _startPlayer.setVolume(1.0);
-    await _startPlayer.resume();
+
+    await _startPlayer.play(AssetSource('icon/start.mp3')); // 🔥 direkt play
   } catch (e) {
     debugPrint('Start sound error: $e');
   }
@@ -308,7 +318,7 @@ Future<void> _playResultIntroEffect() async {
 
   try {
    
-   await _startPlayer.setPlayerMode(PlayerMode.lowLatency);
+ await _startPlayer.setPlayerMode(PlayerMode.mediaPlayer);
 await _startPlayer.setReleaseMode(ReleaseMode.stop);
 await _startPlayer.setVolume(1.0);
 
@@ -329,15 +339,16 @@ await _startPlayer.play(AssetSource('icon/start.mp3'));
 
 
 Future<void> _startBackgroundMusic() async {
-  _soundEnabled = true;
   try {
-    await _bgPlayer.stop(); // 🔥 garanti temiz başlat
+    await _bgPlayer.stop();
 
-    await _bgPlayer.setPlayerMode(PlayerMode.mediaPlayer); // 🔥 EN KRİTİK
-    await _bgPlayer.setReleaseMode(ReleaseMode.loop);      // sürekli dön
+    await _bgPlayer.setReleaseMode(ReleaseMode.loop);
     await _bgPlayer.setVolume(1.0);
-await _bgPlayer.seek(Duration.zero);
-    await _bgPlayer.play(AssetSource('icon/back.mp3'));
+
+    await _bgPlayer.play(
+      AssetSource('icon/back.mp3'),
+      mode: PlayerMode.mediaPlayer, // 🔥 BURAYA AL
+    );
   } catch (e) {
     debugPrint('Music error: $e');
   }
@@ -384,13 +395,16 @@ Future<void> _pauseAllSounds() async {
 
 Future<void> _resumeAllSounds() async {
   _soundEnabled = true;
-  // iOS için ses motorunun kendine gelmesi için 300ms gecikme ekliyoruz
-  await Future.delayed(const Duration(milliseconds: 200));
+  await Future.delayed(const Duration(milliseconds: 300));
+
   try {
-    if (_bgPlayer.state == PlayerState.paused || _bgPlayer.state == PlayerState.stopped) {
+    if (_bgPlayer.state == PlayerState.paused) {
       await _bgPlayer.resume();
     } else if (_bgPlayer.state != PlayerState.playing) {
-      await _bgPlayer.play(AssetSource('icon/back.mp3'));
+      await _bgPlayer.play(
+        AssetSource('icon/back.mp3'),
+        mode: PlayerMode.mediaPlayer,
+      );
     }
   } catch (e) {
     debugPrint('Resume music error: $e');
@@ -947,34 +961,29 @@ void _loadRewardedAd() {
   if (_isLoadingRewardedAd) return;
   _isLoadingRewardedAd = true;
 
+  Future.delayed(const Duration(seconds: 10), () {
+    if (!mounted) return;
+    if (!_rewardedAdReady) {
+      _isLoadingRewardedAd = false;
+      debugPrint('Rewarded ad timeout, retry allowed');
+      setState(() {});
+    }
+  });
+
   RewardedAd.load(
     adUnitId: _rewardedAdUnitId,
     request: const AdRequest(),
     rewardedAdLoadCallback: RewardedAdLoadCallback(
       onAdLoaded: (ad) {
+        debugPrint('Rewarded ad loaded');
         _rewardedAd = ad;
         _rewardedAdReady = true;
         _isLoadingRewardedAd = false;
-
-        ad.fullScreenContentCallback = FullScreenContentCallback(
-          onAdDismissedFullScreenContent: (ad) {
-            ad.dispose();
-            _rewardedAd = null;
-            _rewardedAdReady = false;
-            _loadRewardedAd();
-          },
-          onAdFailedToShowFullScreenContent: (ad, error) {
-            ad.dispose();
-            _rewardedAd = null;
-            _rewardedAdReady = false;
-            _loadRewardedAd();
-          },
-        );
-
         if (mounted) setState(() {});
       },
       onAdFailedToLoad: (error) {
-        debugPrint('Rewarded ad failed: $error');
+        debugPrint('Rewarded ad failed: ${error.code} / ${error.message}');
+        _rewardedAd = null;
         _rewardedAdReady = false;
         _isLoadingRewardedAd = false;
         if (mounted) setState(() {});
@@ -984,14 +993,17 @@ void _loadRewardedAd() {
 }
 
 
-
 void _showRewardedAd({bool recalculate = false}) async {
-  final ad = _rewardedAd;
+final ad = _rewardedAd;
 
-  if (ad == null || !_rewardedAdReady) {
-    _loadRewardedAd();
-    return;
-  }
+if (ad == null || !_rewardedAdReady) {
+  debugPrint('Rewarded ad not ready yet');
+  _loadRewardedAd();
+  return;
+}
+
+_rewardedAd = null;
+_rewardedAdReady = false;
 
   bool done = false;
   bool rewardEarned = false;
