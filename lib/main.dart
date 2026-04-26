@@ -42,10 +42,10 @@ WidgetsFlutterBinding.ensureInitialized();
   final AudioContext audioContext = AudioContext(
     iOS: AudioContextIOS(
       category: AVAudioSessionCategory.playback, // Playback kategorisi şart
-      options: [
-        AVAudioSessionOptions.mixWithOthers,
-        AVAudioSessionOptions.defaultToSpeaker,
-      ],
+     options: {
+  AVAudioSessionOptions.mixWithOthers,
+  AVAudioSessionOptions.defaultToSpeaker,
+},
     ),
     android: AudioContextAndroid(),
   );
@@ -1583,7 +1583,7 @@ String _formatDeltaFromMinutes(int minutes, AppLocalizations l) {
 
   // Dil dosyasından çekiyoruz: l.yearsUnit, l.monthsUnit vb.
   if (years > 0) parts.add('$years ${l.years.toLowerCase()}');
-  if (months > 0) parts.add('$months ${l.months.toLowerCase()}'); // l.months yoksa eklemelisin
+ if (months > 0) parts.add('$months month');
   if (days > 0) parts.add('$days ${l.days.toLowerCase()}');
   if (hours > 0) parts.add('$hours ${l.hours.toLowerCase()}');
   if (mins > 0) parts.add('$mins ${l.minutes.toLowerCase()}');
