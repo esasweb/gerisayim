@@ -38,6 +38,19 @@ void main() async {
   
 WidgetsFlutterBinding.ensureInitialized();
 
+// iOS Ses Kategorisi Ayarı (Sessiz modda bile çalması için)
+  final AudioContext audioContext = AudioContext(
+    iOS: AudioContextIOS(
+      category: AVAudioSessionCategory.playback, // Playback kategorisi şart
+      options: [
+        AVAudioSessionOptions.mixWithOthers,
+        AVAudioSessionOptions.defaultToSpeaker,
+      ],
+    ),
+    android: AudioContextAndroid(),
+  );
+  AudioPlayer.global.setAudioContext(audioContext);
+
   await Firebase.initializeApp(
     options: FirebaseOptions(
       apiKey: "AIzaSyAaSLSjCSuWMSxqjVIVl6UBMmIy-6enk0A",
@@ -371,12 +384,13 @@ Future<void> _pauseAllSounds() async {
 
 Future<void> _resumeAllSounds() async {
   _soundEnabled = true;
-
+  // iOS için ses motorunun kendine gelmesi için 300ms gecikme ekliyoruz
+  await Future.delayed(const Duration(milliseconds: 200));
   try {
-    if (_bgPlayer.state == PlayerState.paused) {
-      await _bgPlayer.resume(); // ✅ kaldığı yer
+    if (_bgPlayer.state == PlayerState.paused || _bgPlayer.state == PlayerState.stopped) {
+      await _bgPlayer.resume();
     } else if (_bgPlayer.state != PlayerState.playing) {
-      await _bgPlayer.play(AssetSource('icon/back.mp3')); // fallback
+      await _bgPlayer.play(AssetSource('icon/back.mp3'));
     }
   } catch (e) {
     debugPrint('Resume music error: $e');
@@ -1549,7 +1563,7 @@ void _showAboutFullScreen(AppLocalizations l) {
   );
 }
 
-String _formatDeltaFromMinutes(int minutes) {
+String _formatDeltaFromMinutes(int minutes, AppLocalizations l) {
   final negative = minutes < 0;
   int total = minutes.abs();
 
@@ -1567,18 +1581,21 @@ String _formatDeltaFromMinutes(int minutes) {
 
   final parts = <String>[];
 
-  if (years > 0) parts.add('$years yıl');
-  if (months > 0) parts.add('$months ay');
-  if (days > 0) parts.add('$days gün');
-  if (hours > 0) parts.add('$hours saat');
-  if (mins > 0) parts.add('$mins dk');
+  // Dil dosyasından çekiyoruz: l.yearsUnit, l.monthsUnit vb.
+  if (years > 0) parts.add('$years ${l.years.toLowerCase()}');
+  if (months > 0) parts.add('$months ${l.months.toLowerCase()}'); // l.months yoksa eklemelisin
+  if (days > 0) parts.add('$days ${l.days.toLowerCase()}');
+  if (hours > 0) parts.add('$hours ${l.hours.toLowerCase()}');
+  if (mins > 0) parts.add('$mins ${l.minutes.toLowerCase()}');
 
-  final text = parts.isEmpty ? '0 dk' : parts.join(' ');
+  final text = parts.isEmpty ? '0 ${l.minutes.toLowerCase()}' : parts.join(' ');
   return '${negative ? '-' : '+'}$text';
 }
 
 
  Widget _fateLine(Map<String, dynamic> e) {
+ final l = AppLocalizations.of(context)!; // Bu satırın olduğundan emin ol
+ 
   final int deltaMinutes = e['delta_minutes'] != null
       ? int.tryParse('${e['delta_minutes']}') ?? 0
       : (int.tryParse('${e['days_delta'] ?? 0}') ?? 0) * 1440;
@@ -1623,7 +1640,7 @@ String _formatDeltaFromMinutes(int minutes) {
         
         Flexible(
           child: Text(
-            _formatDeltaFromMinutes(deltaMinutes),
+            _formatDeltaFromMinutes(deltaMinutes, l), // l parametresini ekledik
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.right,
