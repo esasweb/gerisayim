@@ -22,7 +22,7 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:torch_light/torch_light.dart';
 import 'package:gerisayim/l10n/app_localizations.dart';
-import 'package:app_tracking_transparency/app_tracking_transparency.dart';
+
 
 
 final FlutterLocalNotificationsPlugin localNotifications =
@@ -68,17 +68,14 @@ WidgetsFlutterBinding.ensureInitialized();
   FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
 
 
-if (Platform.isIOS) {
-  final status = await AppTrackingTransparency.requestTrackingAuthorization();
-}
 
 
 const androidInit = AndroidInitializationSettings('@mipmap/launcher_icon');
 
 const iosInit = DarwinInitializationSettings(
-  requestAlertPermission: true,
-  requestBadgePermission: true,
-  requestSoundPermission: true,
+  requestAlertPermission: false, // 🔥 false yap
+  requestBadgePermission: false, // 🔥 false yap
+  requestSoundPermission: false, // 🔥 false yap
 );
 
 const initSettings = InitializationSettings(
@@ -185,7 +182,7 @@ class DeathCalculatorPage extends StatefulWidget {
 
 class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     with SingleTickerProviderStateMixin {
-  static const int calculationSeconds = 720;
+  static const int calculationSeconds = 60;
 
   final GlobalKey _shareKey = GlobalKey();
   final AudioPlayer _bgPlayer = AudioPlayer();
@@ -677,7 +674,18 @@ Future<void> _askNotificationPermissionWithModal() async {
       badge: true,
       sound: true,
     );
-  }
+  
+  
+  // 2. iOS için Local Notification İzni (Manuel Tetikleme)
+  await localNotifications
+      .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+      ?.requestPermissions(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+	  
+	  }
 }
 
 

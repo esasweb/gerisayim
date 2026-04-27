@@ -14,8 +14,7 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
-	<key>NSUserTrackingUsageDescription</key>
-<string>Size özel reklamlar sunabilmemiz için bu izne ihtiyacımız var.</string>
+	
 	<key>CFBundleName</key>
 	<string>gerisayim</string>
 	<key>CFBundlePackageType</key>
@@ -37,21 +36,7 @@
 
 	<key>GADApplicationIdentifier</key>
 	<string>ca-app-pub-6275851890605245~5420631069</string>
-	<key>SKAdNetworkItems</key>
-	<array>
-		<dict>
-			<key>SKAdNetworkIdentifier</key>
-			<string>cstr6suwn9.skadnetwork</string>
-		</dict>
-		<dict>
-			<key>SKAdNetworkIdentifier</key>
-			<string>4fzdc2evr5.skadnetwork</string>
-		</dict>
-		<dict>
-			<key>SKAdNetworkIdentifier</key>
-			<string>2fnua5tdw4.skadnetwork</string>
-		</dict>
-	</array>
+	
 
 	<key>UIBackgroundModes</key>
 	<array>
@@ -69,27 +54,7 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Ekran görüntüsünü paylaşmak için galeri izni gerekir.</string>
 
-	<key>UIApplicationSceneManifest</key>
-	<dict>
-		<key>UIApplicationSupportsMultipleScenes</key>
-		<false/>
-		<key>UISceneConfigurations</key>
-		<dict>
-			<key>UIWindowSceneSessionRoleApplication</key>
-			<array>
-				<dict>
-					<key>UISceneClassName</key>
-					<string>UIWindowScene</string>
-					<key>UISceneConfigurationName</key>
-					<string>flutter</string>
-					<key>UISceneDelegateClassName</key>
-					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
-					<key>UISceneStoryboardFile</key>
-					<string>Main</string>
-				</dict>
-			</array>
-		</dict>
-	</dict>
+	
 
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
