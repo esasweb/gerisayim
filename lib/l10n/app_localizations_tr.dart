@@ -176,4 +176,64 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get noEventYet => 'Henüz kader değişimi yok.';
+
+  @override
+  String get surveyTitle => 'RİSK VE YAŞAM ANALİZİ';
+
+  @override
+  String surveyStepText(Object step) {
+    return 'ANALİZ $step / 4';
+  }
+
+  @override
+  String get surveyNextButton => 'DEVAM ET';
+
+  @override
+  String get surveyCalculateButton => 'KADERİ HESAPLA';
+
+  @override
+  String get surveyQ1Title => 'UYKU DÜZENİ';
+
+  @override
+  String get surveyQ1Desc => 'Günde ortalama kaç saat uyuyorsunuz?';
+
+  @override
+  String surveyQ1Unit(Object hours) {
+    return '$hours SAAT';
+  }
+
+  @override
+  String get surveyQ2Title => 'ZARARLI ALIŞKANLIKLAR';
+
+  @override
+  String get surveyQ2Desc =>
+      'Düzenli tütün, alkol veya yoğun kafein tüketiyor musunuz?';
+
+  @override
+  String get surveyQ2OptionYes => 'EVET';
+
+  @override
+  String get surveyQ2OptionNo => 'HAYIR';
+
+  @override
+  String get surveyQ3Title => 'STRES VE ANKSİYETE';
+
+  @override
+  String get surveyQ3Desc => 'Günlük stres seviyenizi derecelendirin (1 - 10):';
+
+  @override
+  String surveyQ3Unit(Object level) {
+    return 'SEVİYE $level';
+  }
+
+  @override
+  String get surveyQ4Title => 'FİZİKSEL AKTİVİTE';
+
+  @override
+  String get surveyQ4Desc => 'Haftada kaç gün egzersiz yapıyorsunuz?';
+
+  @override
+  String surveyQ4Unit(Object days) {
+    return '$days GÜN';
+  }
 }

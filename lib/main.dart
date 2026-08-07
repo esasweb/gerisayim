@@ -23,8 +23,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:torch_light/torch_light.dart';
 import 'package:gerisayim/l10n/app_localizations.dart';
 
-
-
 final FlutterLocalNotificationsPlugin localNotifications =
     FlutterLocalNotificationsPlugin();
 
@@ -33,25 +31,22 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
 }
 
-
 void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-  
-WidgetsFlutterBinding.ensureInitialized();
-
-// iOS Ses Kategorisi Ayarı (Sessiz modda bile çalması için)
+  // iOS Ses Kategorisi Ayarı (Sessiz modda bile çalması için)
   final AudioContext audioContext = AudioContext(
     iOS: AudioContextIOS(
-      category: AVAudioSessionCategory.playback, // Playback kategorisi şart
-     options: {
-  AVAudioSessionOptions.mixWithOthers,
-  AVAudioSessionOptions.defaultToSpeaker,
-},
+      category: AVAudioSessionCategory.playback,
+      options: {
+        AVAudioSessionOptions.mixWithOthers,
+        AVAudioSessionOptions.defaultToSpeaker,
+      },
     ),
     android: AudioContextAndroid(),
   );
   AudioPlayer.global.setAudioContext(audioContext);
- 
+
   await Firebase.initializeApp(
     options: FirebaseOptions(
       apiKey: "AIzaSyAaSLSjCSuWMSxqjVIVl6UBMmIy-6enk0A",
@@ -67,35 +62,32 @@ WidgetsFlutterBinding.ensureInitialized();
 
   FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
 
+  const androidInit = AndroidInitializationSettings('@mipmap/launcher_icon');
 
+  const iosInit = DarwinInitializationSettings(
+    requestAlertPermission: false,
+    requestBadgePermission: false,
+    requestSoundPermission: false,
+  );
 
+  const initSettings = InitializationSettings(
+    android: androidInit,
+    iOS: iosInit,
+  );
 
-const androidInit = AndroidInitializationSettings('@mipmap/launcher_icon');
+  await localNotifications.initialize(initSettings);
 
-const iosInit = DarwinInitializationSettings(
-  requestAlertPermission: false, // 🔥 false yap
-  requestBadgePermission: false, // 🔥 false yap
-  requestSoundPermission: false, // 🔥 false yap
-);
+  const androidChannel = AndroidNotificationChannel(
+    'important_events',
+    'Important Events',
+    description: 'Important event notifications',
+    importance: Importance.high,
+  );
 
-const initSettings = InitializationSettings(
-  android: androidInit,
-  iOS: iosInit,
-);
-
-await localNotifications.initialize(initSettings);
-
-const androidChannel = AndroidNotificationChannel(
-  'important_events',
-  'Important Events',
-  description: 'Important event notifications',
-  importance: Importance.high,
-);
-
-await localNotifications
-    .resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>()
-    ?.createNotificationChannel(androidChannel);
+  await localNotifications
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(androidChannel);
 
   await MobileAds.instance.initialize();
 
@@ -133,21 +125,21 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
-@override
-void initState() {
-  super.initState();
-  _loadLocale();
-}
+  @override
+  void initState() {
+    super.initState();
+    _loadLocale();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       builder: (context, child) {
-    return Container(
-      color: Colors.black,
-      child: child ?? const SizedBox.shrink(),
-    );
-  },
+        return Container(
+          color: Colors.black,
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       onGenerateTitle: (context) => AppLocalizations.of(context)!.appTitleShort,
       debugShowCheckedModeBanner: false,
       locale: _locale,
@@ -155,7 +147,7 @@ void initState() {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: Colors.black,
         colorScheme: const ColorScheme.dark(primary: Colors.white),
-       fontFamily: 'Orbitron',
+        fontFamily: 'Orbitron',
       ),
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
@@ -167,6 +159,7 @@ void initState() {
 enum AppScreenState {
   initializing,
   start,
+  survey, // 🔥 Anket Ekranı
   calculating,
   result,
   recalculateOffer,
@@ -189,7 +182,7 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   final AudioPlayer _startPlayer = AudioPlayer();
 
   AppScreenState _screenState = AppScreenState.initializing;
-String? _deviceKey;
+  String? _deviceKey;
   String? _uid;
   DateTime? _targetDate;
   Duration _remainingLife = Duration.zero;
@@ -198,7 +191,7 @@ String? _deviceKey;
   Timer? _lifeTimer;
   Timer? _calculationTimer;
   Timer? _flashTimer;
-late final AnimationController _splashController;
+  late final AnimationController _splashController;
   InterstitialAd? _interstitialAd;
   bool _interstitialReady = false;
   bool _introAnimationDone = false;
@@ -208,16 +201,25 @@ late final AnimationController _splashController;
   RewardedAd? _rewardedAd;
   bool _rewardedAdReady = false;
   bool _isLoadingRewardedAd = false;
-bool _soundEnabled = true;
-final Set<int> _introEffectPlayedRows = {};
-bool _introMainSoundPlayed = false;
+  bool _soundEnabled = true;
+  final Set<int> _introEffectPlayedRows = {};
+  bool _introMainSoundPlayed = false;
   List<Map<String, dynamic>> _events = [];
-DateTime? _introStartTime;
+  DateTime? _introStartTime;
+
+  // --- 🔥 ANKET / FEATURE TOGGLE DEĞİŞKENLERİ ---
+  bool _showSurveyConfig = false;
+  int _surveyStep = 0;
+  int _sleepHours = 7;
+  bool _habitsYes = false;
+  int _stressLevel = 5;
+  int _exerciseDays = 2;
+
   String get _rewardedAdUnitId {
     return Platform.isAndroid
         ? 'ca-app-pub-6275851890605245/4139338988'
         : 'ca-app-pub-6275851890605245/4107549394';
-  } 
+  }
 
   String get _interstitialAdUnitId {
     return Platform.isAndroid
@@ -225,37 +227,33 @@ DateTime? _introStartTime;
         : 'ca-app-pub-6275851890605245/3650797555';
   }
 
-@override
-void initState() {
-  super.initState();
+  @override
+  void initState() {
+    super.initState();
 
- 
+    _splashController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
 
-  _splashController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  )..repeat(reverse: true);
+    AudioCache.instance = AudioCache(prefix: 'assets/');
 
-AudioCache.instance = AudioCache(prefix: 'assets/');
+    _startBackgroundMusic();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _startPlayer.play(AssetSource('icon/start.mp3'), volume: 0);
+    });
+    _startRandomFlashEffect();
+    _initApp();
+    _loadRewardedAd();
 
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) _loadRewardedAd();
+    });
 
-  _startBackgroundMusic();
-  // 🔥 BURAYA EKLE
-Future.delayed(const Duration(milliseconds: 300), () {
-  _startPlayer.play(AssetSource('icon/start.mp3'), volume: 0);
-});
-  _startRandomFlashEffect();
-  _initApp();
-  _loadRewardedAd();
+    _loadInterstitialAd();
+    _listenNotificationClicks();
+  }
 
-Future.delayed(const Duration(seconds: 2), () {
-  if (mounted) _loadRewardedAd();
-});
-
-  _loadInterstitialAd();
-  _listenNotificationClicks();
-}
- 
   @override
   void dispose() {
     _startPlayer.dispose();
@@ -270,86 +268,73 @@ Future.delayed(const Duration(seconds: 2), () {
     super.dispose();
   }
 
-void _stopFlashEffect() {
-  _flashTimer?.cancel();
-  _turnFlashOff(); // varsa açık kapat
-}
-
-
-Future<void> _playStartSound() async {
-  try {
-    await _startPlayer.stop();
-
-    await _startPlayer.setReleaseMode(ReleaseMode.stop);
-    await _startPlayer.setVolume(1.0);
-
-    await _startPlayer.play(AssetSource('icon/start.mp3')); // 🔥 direkt play
-  } catch (e) {
-    debugPrint('Start sound error: $e');
-  }
-}
-
-
-Future<String> _getDeviceKey() async {
-  final deviceInfo = DeviceInfoPlugin();
-
-  if (Platform.isAndroid) {
-    final info = await deviceInfo.androidInfo;
-    return 'android_${info.id}';
+  void _stopFlashEffect() {
+    _flashTimer?.cancel();
+    _turnFlashOff();
   }
 
-  if (Platform.isIOS) {
-    final info = await deviceInfo.iosInfo;
-    return 'ios_${info.identifierForVendor ?? 'unknown'}';
+  Future<void> _playStartSound() async {
+    try {
+      await _startPlayer.stop();
+      await _startPlayer.setReleaseMode(ReleaseMode.stop);
+      await _startPlayer.setVolume(1.0);
+      await _startPlayer.play(AssetSource('icon/start.mp3'));
+    } catch (e) {
+      debugPrint('Start sound error: $e');
+    }
   }
 
-  return 'unknown_${DateTime.now().millisecondsSinceEpoch}';
-}
+  Future<String> _getDeviceKey() async {
+    final deviceInfo = DeviceInfoPlugin();
 
+    if (Platform.isAndroid) {
+      final info = await deviceInfo.androidInfo;
+      return 'android_${info.id}';
+    }
 
-Future<void> _playResultIntroEffect() async {
-  if (_introMainSoundPlayed) return;
+    if (Platform.isIOS) {
+      final info = await deviceInfo.iosInfo;
+      return 'ios_${info.identifierForVendor ?? 'unknown'}';
+    }
 
-  _introMainSoundPlayed = true;
-  _introStartTime = DateTime.now();
-
-  try {
-   
- await _startPlayer.setPlayerMode(PlayerMode.mediaPlayer);
-await _startPlayer.setReleaseMode(ReleaseMode.stop);
-await _startPlayer.setVolume(1.0);
-
-await _startPlayer.play(AssetSource('icon/start.mp3'));
-  } catch (e) {
-    debugPrint('Start sound error: $e');
+    return 'unknown_${DateTime.now().millisecondsSinceEpoch}';
   }
 
-  // 🔥 flash senkron
-  try {
-    await TorchLight.enableTorch();
-    await Future.delayed(const Duration(milliseconds: 120));
-    await TorchLight.disableTorch();
-  } catch (_) {}
-}
+  Future<void> _playResultIntroEffect() async {
+    if (_introMainSoundPlayed) return;
 
+    _introMainSoundPlayed = true;
+    _introStartTime = DateTime.now();
 
+    try {
+      await _startPlayer.setPlayerMode(PlayerMode.mediaPlayer);
+      await _startPlayer.setReleaseMode(ReleaseMode.stop);
+      await _startPlayer.setVolume(1.0);
+      await _startPlayer.play(AssetSource('icon/start.mp3'));
+    } catch (e) {
+      debugPrint('Start sound error: $e');
+    }
 
-
-Future<void> _startBackgroundMusic() async {
-  try {
-    await _bgPlayer.stop();
-
-    await _bgPlayer.setReleaseMode(ReleaseMode.loop);
-    await _bgPlayer.setVolume(1.0);
-
-    await _bgPlayer.play(
-      AssetSource('icon/back.mp3'),
-      mode: PlayerMode.mediaPlayer, // 🔥 BURAYA AL
-    );
-  } catch (e) {
-    debugPrint('Music error: $e');
+    try {
+      await TorchLight.enableTorch();
+      await Future.delayed(const Duration(milliseconds: 120));
+      await TorchLight.disableTorch();
+    } catch (_) {}
   }
-}
+
+  Future<void> _startBackgroundMusic() async {
+    try {
+      await _bgPlayer.stop();
+      await _bgPlayer.setReleaseMode(ReleaseMode.loop);
+      await _bgPlayer.setVolume(1.0);
+      await _bgPlayer.play(
+        AssetSource('icon/back.mp3'),
+        mode: PlayerMode.mediaPlayer,
+      );
+    } catch (e) {
+      debugPrint('Music error: $e');
+    }
+  }
 
   Future<void> _turnFlashOff() async {
     try {
@@ -358,135 +343,114 @@ Future<void> _startBackgroundMusic() async {
   }
 
   void _startRandomFlashEffect() {
-  _flashTimer?.cancel();
-  final r = Random.secure();
+    _flashTimer?.cancel();
+    final r = Random.secure();
 
-  _flashTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
-    if (!mounted) return;
+    _flashTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      if (!mounted) return;
 
-    // %55 ihtimalle çalışır
-    if (r.nextInt(100) > 55) return;
+      if (r.nextInt(100) > 55) return;
+
+      try {
+        final count = 2 + r.nextInt(5);
+
+        for (int i = 0; i < count; i++) {
+          await TorchLight.enableTorch();
+          await Future.delayed(Duration(milliseconds: 40 + r.nextInt(90)));
+
+          await TorchLight.disableTorch();
+          await Future.delayed(Duration(milliseconds: 40 + r.nextInt(120)));
+        }
+      } catch (e) {
+        debugPrint('Flash error: $e');
+      }
+    });
+  }
+
+  Future<void> _pauseAllSounds() async {
+    _soundEnabled = false;
+    try {
+      await _bgPlayer.pause();
+    } catch (_) {}
+  }
+
+  Future<void> _resumeAllSounds() async {
+    _soundEnabled = true;
+    await Future.delayed(const Duration(milliseconds: 300));
 
     try {
-      final count = 2 + r.nextInt(5); // 2-6 arası flash
-
-      for (int i = 0; i < count; i++) {
-        await TorchLight.enableTorch();
-        await Future.delayed(Duration(milliseconds: 40 + r.nextInt(90)));
-
-        await TorchLight.disableTorch();
-        await Future.delayed(Duration(milliseconds: 40 + r.nextInt(120)));
+      if (_bgPlayer.state == PlayerState.paused) {
+        await _bgPlayer.resume();
+      } else if (_bgPlayer.state != PlayerState.playing) {
+        await _bgPlayer.play(
+          AssetSource('icon/back.mp3'),
+          mode: PlayerMode.mediaPlayer,
+        );
       }
     } catch (e) {
-      debugPrint('Flash error: $e');
+      debugPrint('Resume music error: $e');
     }
-  });
-}
-
-Future<void> _pauseAllSounds() async {
-  _soundEnabled = false;
-  try {
-    await _bgPlayer.pause(); // sadece duraklat
-  } catch (_) {}
-}
-
-Future<void> _resumeAllSounds() async {
-  _soundEnabled = true;
-  await Future.delayed(const Duration(milliseconds: 300));
-
-  try {
-    if (_bgPlayer.state == PlayerState.paused) {
-      await _bgPlayer.resume();
-    } else if (_bgPlayer.state != PlayerState.playing) {
-      await _bgPlayer.play(
-        AssetSource('icon/back.mp3'),
-        mode: PlayerMode.mediaPlayer,
-      );
-    }
-  } catch (e) {
-    debugPrint('Resume music error: $e');
   }
-}
 
+  void _loadInterstitialAd() {
+    InterstitialAd.load(
+      adUnitId: _interstitialAdUnitId,
+      request: const AdRequest(),
+      adLoadCallback: InterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          _interstitialAd = ad;
+          _interstitialReady = true;
 
-void _loadInterstitialAd() {
-  InterstitialAd.load(
-    adUnitId: _interstitialAdUnitId,
-    request: const AdRequest(),
-    adLoadCallback: InterstitialAdLoadCallback(
-      onAdLoaded: (ad) {
-        _interstitialAd = ad;
-        _interstitialReady = true;
-
-        ad.fullScreenContentCallback = FullScreenContentCallback(
-          onAdShowedFullScreenContent: (ad) async {
-            await _pauseAllSounds(); // 🔥 TAM BURADA
-            _stopFlashEffect(); // 🔥 EKLE
-          },
-          onAdDismissedFullScreenContent: (ad) async {
-            ad.dispose();
-            await _resumeAllSounds(); // 🔥 GERİ AÇ
-            _startRandomFlashEffect(); // 🔥 EKLE
-            _interstitialAd = null;
-            _interstitialReady = false;
-            _loadInterstitialAd();
-          },
-          onAdFailedToShowFullScreenContent: (ad, error) async {
-            ad.dispose();
-            await _resumeAllSounds(); // 🔥 GERİ AÇ
-            _interstitialAd = null;
-            _interstitialReady = false;
-            _loadInterstitialAd();
-          },
-        );
-      },
-      onAdFailedToLoad: (error) {
-        _interstitialReady = false;
-      },
-    ),
-  );
-}
-
-  void _scheduleIntroFinish() {
-    if (_introFinishScheduled || _introAnimationDone) return;
-    _introFinishScheduled = true;
-
-    Future.delayed(const Duration(milliseconds: 4000), () { 
-      if (!mounted) return;
-      setState(() => _introAnimationDone = true);
-
-     Future.delayed(const Duration(seconds: 1), () async {
-  if (!mounted) return;
-
-  if (_interstitialReady && _interstitialAd != null) {
-    await _pauseAllSounds();
-    _interstitialAd!.show();
-  }
-}); 
-    }); 
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdShowedFullScreenContent: (ad) async {
+              await _pauseAllSounds();
+              _stopFlashEffect();
+            },
+            onAdDismissedFullScreenContent: (ad) async {
+              ad.dispose();
+              await _resumeAllSounds();
+              _startRandomFlashEffect();
+              _interstitialAd = null;
+              _interstitialReady = false;
+              _loadInterstitialAd();
+            },
+            onAdFailedToShowFullScreenContent: (ad, error) async {
+              ad.dispose();
+              await _resumeAllSounds();
+              _interstitialAd = null;
+              _interstitialReady = false;
+              _loadInterstitialAd();
+            },
+          );
+        },
+        onAdFailedToLoad: (error) {
+          _interstitialReady = false;
+        },
+      ),
+    );
   }
 
   void _listenNotificationClicks() {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-  final notification = message.notification;
+      final notification = message.notification;
 
-  if (notification != null) {
-    await localNotifications.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'important_events',
-          'Important Events',
-          channelDescription: 'Important event notifications',
-          importance: Importance.high,
-          priority: Priority.high,
-        ),
-      ),
-    );
-  }
-});
+      if (notification != null) {
+        await localNotifications.show(
+          notification.hashCode,
+          notification.title,
+          notification.body,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'important_events',
+              'Important Events',
+              channelDescription: 'Important event notifications',
+              importance: Importance.high,
+              priority: Priority.high,
+            ),
+          ),
+        );
+      }
+    });
 
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) async {
       if (message.data['type'] == 'important_event') {
@@ -507,9 +471,26 @@ void _loadInterstitialAd() {
     setState(() => _screenState = AppScreenState.recalculateOffer);
   }
 
+  // --- 🔥 FIRESTORE ANKET KONTROLÜ ---
+  Future<void> _checkSurveyConfig() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('app_config')
+          .doc('settings')
+          .get();
+
+      if (doc.exists && doc.data() != null) {
+        final val = doc.data()!['show_survey'];
+        _showSurveyConfig = (val == 1 || val == true);
+      }
+    } catch (e) {
+      debugPrint('Config fetch error: $e');
+      _showSurveyConfig = false;
+    }
+  }
+
   Future<void> _initApp() async {
     try {
-      
       User? user = FirebaseAuth.instance.currentUser;
       user ??= (await FirebaseAuth.instance.signInAnonymously()).user;
       if (user == null) throw Exception('Firebase user oluşturulamadı');
@@ -518,7 +499,7 @@ void _loadInterstitialAd() {
       _deviceKey = await _getDeviceKey();
       final lang = PlatformDispatcher.instance.locale.languageCode;
 
-     await _askNotificationPermissionWithModal();
+      await _askNotificationPermissionWithModal();
 
       String? token;
       try {
@@ -550,144 +531,139 @@ void _loadInterstitialAd() {
         }, SetOptions(merge: true));
       }
 
-FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
-  if (_deviceKey == null) return;
+      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+        if (_deviceKey == null) return;
 
-  await FirebaseFirestore.instance.collection('users').doc(_deviceKey).set({
-    'fcm_token': newToken,
-    'updated_at': FieldValue.serverTimestamp(),
-  }, SetOptions(merge: true));
+        await FirebaseFirestore.instance.collection('users').doc(_deviceKey).set({
+          'fcm_token': newToken,
+          'updated_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
 
-  debugPrint('FCM token refreshed: $newToken');
-});
+        debugPrint('FCM token refreshed: $newToken');
+      });
 
       await _ensureUserDefaults();
       final freshDoc = await userRef.get();
       final data = freshDoc.data() ?? {};
 
-if (data['recalc_required'] == true && data['active_event_seen'] != true) {
-  await userRef.set({
-    'active_event_seen': true,
-    'active_event_seen_at': FieldValue.serverTimestamp(),
-  }, SetOptions(merge: true));
+      if (data['recalc_required'] == true && data['active_event_seen'] != true) {
+        await userRef.set({
+          'active_event_seen': true,
+          'active_event_seen_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
 
-  await _loadEvents();
+        await _loadEvents();
 
- 
-
-  if (mounted) {
-    setState(() => _screenState = AppScreenState.recalculateOffer);
-  }
-  return;
-}
+        if (mounted) {
+          setState(() => _screenState = AppScreenState.recalculateOffer);
+        }
+        return;
+      }
 
       final targetDateRaw = data['target_date'];
       if (targetDateRaw != null && targetDateRaw.toString().isNotEmpty) {
         _targetDate = DateTime.tryParse(targetDateRaw.toString());
-      if (_targetDate != null) {
-  _introAnimationDone = false;
-  _introFinishScheduled = false;
-  _introEffectPlayedRows.clear();
-  _introMainSoundPlayed = false;
+        if (_targetDate != null) {
+          _introAnimationDone = false;
+          _introFinishScheduled = false;
+          _introEffectPlayedRows.clear();
+          _introMainSoundPlayed = false;
 
-  _startLifeCountdown();
-  await _loadEvents();
+          _startLifeCountdown();
+          await _loadEvents();
 
-  if (mounted) {
-    _playResultIntroEffect();
-    setState(() => _screenState = AppScreenState.result);
-  }
-  return;
-}
+          if (mounted) {
+            _playResultIntroEffect();
+            setState(() => _screenState = AppScreenState.result);
+          }
+          return;
+        }
       }
-     
-      if (mounted) { setState(() => _screenState = AppScreenState.start);}
+
+      if (mounted) {
+        setState(() => _screenState = AppScreenState.start);
+      }
     } catch (e) {
-    
       debugPrint('Init error: $e');
-      if (mounted) { setState(() => _screenState = AppScreenState.start);}
+      if (mounted) {
+        setState(() => _screenState = AppScreenState.start);
+      }
     }
   }
 
+  Future<void> _askNotificationPermissionWithModal() async {
+    if (!mounted) return;
 
+    final settings = await FirebaseMessaging.instance.getNotificationSettings();
 
-Future<void> _askNotificationPermissionWithModal() async {
-  if (!mounted) return;
+    if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+        settings.authorizationStatus == AuthorizationStatus.provisional) {
+      return;
+    }
 
-  final settings = await FirebaseMessaging.instance.getNotificationSettings();
+    final l = AppLocalizations.of(context)!;
 
-  if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-      settings.authorizationStatus == AuthorizationStatus.provisional) {
-    return;
-  }
-
-  final l = AppLocalizations.of(context)!;
-
-  final bool? accepted = await showDialog<bool>(
-    context: context,
-    barrierDismissible: false,
-    builder: (context) {
-      return AlertDialog(
-        backgroundColor: Colors.black,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(18),
-          side: const BorderSide(color: Colors.white24),
-        ),
-        title: Text(
-          l.notificationPermissionTitle,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
+    final bool? accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.black,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: const BorderSide(color: Colors.white24),
           ),
-        ),
-        content: Text(
-          l.notificationPermissionText,
-          style: const TextStyle(
-            color: Colors.white70,
-            height: 1.45,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              l.notificationPermissionNo,
-              style: const TextStyle(color: Colors.white54),
+          title: Text(
+            l.notificationPermissionTitle,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
             ),
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
+          content: Text(
+            l.notificationPermissionText,
+            style: const TextStyle(
+              color: Colors.white70,
+              height: 1.45,
             ),
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(l.notificationPermissionYes),
           ),
-        ],
-      );
-    },
-  );
-
-  if (accepted == true) {
-    await FirebaseMessaging.instance.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(
+                l.notificationPermissionNo,
+                style: const TextStyle(color: Colors.white54),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black,
+              ),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(l.notificationPermissionYes),
+            ),
+          ],
+        );
+      },
     );
-  
-  
-  // 2. iOS için Local Notification İzni (Manuel Tetikleme)
-  await localNotifications
-      .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
-      ?.requestPermissions(
+
+    if (accepted == true) {
+      await FirebaseMessaging.instance.requestPermission(
         alert: true,
         badge: true,
         sound: true,
       );
-	  
-	  }
-}
 
+      await localNotifications
+          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+          ?.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
+    }
+  }
 
   Future<void> _ensureUserDefaults() async {
     if (_deviceKey == null) return;
@@ -708,6 +684,7 @@ Future<void> _askNotificationPermissionWithModal() async {
 
   Future<void> _startCalculation() async {
     if (_deviceKey == null) return;
+
     final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
     final doc = await userRef.get();
     final data = doc.data() ?? {};
@@ -720,11 +697,29 @@ Future<void> _askNotificationPermissionWithModal() async {
       return;
     }
 
-    await userRef.set({
-      'calculation_started_at': FieldValue.serverTimestamp(),
-      'calculation_status': 'started',
-      'updated_at': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    // 🔥 Firestore bayrak kontrolü (show_survey: 1 ise)
+    await _checkSurveyConfig();
+
+    if (_showSurveyConfig) {
+      setState(() {
+        _surveyStep = 0;
+        _screenState = AppScreenState.survey;
+      });
+      return;
+    }
+
+    _proceedToCalculatingTimer();
+  }
+
+  void _proceedToCalculatingTimer() async {
+    if (_deviceKey != null) {
+      final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
+      await userRef.set({
+        'calculation_started_at': FieldValue.serverTimestamp(),
+        'calculation_status': 'started',
+        'updated_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
 
     _calculationTimer?.cancel();
     setState(() {
@@ -732,30 +727,27 @@ Future<void> _askNotificationPermissionWithModal() async {
       _calculationLeft = calculationSeconds;
     });
 
+    _calculationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_soundEnabled) {
+        HapticFeedback.selectionClick();
+        SystemSound.play(SystemSoundType.click);
+      }
 
-_calculationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-   if (_soundEnabled) {
-  HapticFeedback.selectionClick();
-  SystemSound.play(SystemSoundType.click);
-}
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
 
-  if (!mounted) {
-    timer.cancel();
-    return;
-  }
+      if (_calculationLeft <= 1) {
+        timer.cancel();
+        _finishCalculation();
+        return;
+      }
 
-  if (_calculationLeft <= 1) {
-    timer.cancel();
-    _finishCalculation();
-    return;
-  }
-
-
-
-  setState(() {
-    _calculationLeft--;
-  });
-});
+      setState(() {
+        _calculationLeft--;
+      });
+    });
   }
 
   Future<void> _finishCalculation() async {
@@ -780,130 +772,126 @@ _calculationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       await _createInitialEvents();
     }
 
-  _introAnimationDone = false;
-_introFinishScheduled = false;
-_introEffectPlayedRows.clear();
-_introMainSoundPlayed = false;
-_startLifeCountdown();
-await _loadEvents();
+    _introAnimationDone = false;
+    _introFinishScheduled = false;
+    _introEffectPlayedRows.clear();
+    _introMainSoundPlayed = false;
+    _startLifeCountdown();
+    await _loadEvents();
 
-if (mounted) {
-  _playResultIntroEffect();
-  setState(() => _screenState = AppScreenState.result);
-}
+    if (mounted) {
+      _playResultIntroEffect();
+      setState(() => _screenState = AppScreenState.result);
+    }
   }
 
- void _startRecalculation() {
-  _calculationTimer?.cancel();
+  void _startRecalculation() {
+    _calculationTimer?.cancel();
 
-  setState(() {
-    _screenState = AppScreenState.recalculating;
-    _calculationLeft = calculationSeconds;
-  });
-
-  _calculationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-     if (_soundEnabled) {
-  HapticFeedback.selectionClick();
-  SystemSound.play(SystemSoundType.click);
-}
-    if (!mounted) {
-      timer.cancel();
-      return;
-    }
-
-    if (_calculationLeft <= 1) {
-      timer.cancel();
-      _finishRecalculation();
-      return;
-    }
-
-   
     setState(() {
-      _calculationLeft--;
+      _screenState = AppScreenState.recalculating;
+      _calculationLeft = calculationSeconds;
     });
-  });
-}
 
+    _calculationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_soundEnabled) {
+        HapticFeedback.selectionClick();
+        SystemSound.play(SystemSoundType.click);
+      }
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
 
-Future<void> _finishRecalculation() async {
-  if (_deviceKey == null) {
-    await _finishCalculation();
-    return;
+      if (_calculationLeft <= 1) {
+        timer.cancel();
+        _finishRecalculation();
+        return;
+      }
+
+      setState(() {
+        _calculationLeft--;
+      });
+    });
   }
 
-  final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-
-  DateTime oldTarget = DateTime.now().add(
-    Duration(days: 7 + Random.secure().nextInt((365 * 50) - 7 + 1)),
-  );
-
-  String? eventId;
-  int deltaMinutes = 0;
-
-  try {
-    final doc = await userRef.get();
-    final data = doc.data() ?? {};
-
-    eventId = data['active_event_id']?.toString();
-
-    deltaMinutes =
-        int.tryParse('${data['active_event_delta_minutes'] ?? 0}') ??
-        ((int.tryParse('${data['active_event_delta_days'] ?? 0}') ?? 0) * 1440);
-
-    final oldTargetRaw = data['target_date'];
-
-    if (oldTargetRaw != null && oldTargetRaw.toString().isNotEmpty) {
-      oldTarget = DateTime.tryParse(oldTargetRaw.toString()) ?? oldTarget;
+  Future<void> _finishRecalculation() async {
+    if (_deviceKey == null) {
+      await _finishCalculation();
+      return;
     }
 
-    final newTarget = oldTarget.add(Duration(minutes: deltaMinutes));
+    final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
 
-    await userRef.set({
-      'target_date': newTarget.toIso8601String(),
-      'last_recalculated_at': FieldValue.serverTimestamp(),
-      'recalc_required': false,
-      'active_event_id': null,
-      'active_event_delta_minutes': null,
-      'active_event_delta_days': null,
-      'active_event_seen': false,
-      'updated_at': FieldValue.serverTimestamp(),
-      'locked': true,
-    }, SetOptions(merge: true));
+    DateTime oldTarget = DateTime.now().add(
+      Duration(days: 7 + Random.secure().nextInt((365 * 50) - 7 + 1)),
+    );
 
-    if (eventId != null && eventId!.isNotEmpty) {
-      await userRef.collection('events').doc(eventId).set({
-        'applied': true,
-        'old_target_date': oldTarget.toIso8601String(),
-        'new_target_date': newTarget.toIso8601String(),
-        'applied_at': FieldValue.serverTimestamp(),
+    String? eventId;
+    int deltaMinutes = 0;
+
+    try {
+      final doc = await userRef.get();
+      final data = doc.data() ?? {};
+
+      eventId = data['active_event_id']?.toString();
+
+      deltaMinutes =
+          int.tryParse('${data['active_event_delta_minutes'] ?? 0}') ??
+          ((int.tryParse('${data['active_event_delta_days'] ?? 0}') ?? 0) * 1440);
+
+      final oldTargetRaw = data['target_date'];
+
+      if (oldTargetRaw != null && oldTargetRaw.toString().isNotEmpty) {
+        oldTarget = DateTime.tryParse(oldTargetRaw.toString()) ?? oldTarget;
+      }
+
+      final newTarget = oldTarget.add(Duration(minutes: deltaMinutes));
+
+      await userRef.set({
+        'target_date': newTarget.toIso8601String(),
+        'last_recalculated_at': FieldValue.serverTimestamp(),
+        'recalc_required': false,
+        'active_event_id': null,
+        'active_event_delta_minutes': null,
+        'active_event_delta_days': null,
+        'active_event_seen': false,
+        'updated_at': FieldValue.serverTimestamp(),
+        'locked': true,
       }, SetOptions(merge: true));
+
+      if (eventId != null && eventId!.isNotEmpty) {
+        await userRef.collection('events').doc(eventId).set({
+          'applied': true,
+          'old_target_date': oldTarget.toIso8601String(),
+          'new_target_date': newTarget.toIso8601String(),
+          'applied_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      _targetDate = newTarget;
+    } catch (e) {
+      debugPrint('Recalculation error: $e');
+      _targetDate = oldTarget.add(Duration(minutes: deltaMinutes));
     }
 
-    _targetDate = newTarget;
-  } catch (e) {
-    debugPrint('Recalculation error: $e');
-    _targetDate = oldTarget.add(Duration(minutes: deltaMinutes));
+    _introAnimationDone = false;
+    _introFinishScheduled = false;
+    _introEffectPlayedRows.clear();
+    _introMainSoundPlayed = false;
+
+    await _loadEvents();
+    _startLifeCountdown();
+
+    if (mounted) {
+      _playResultIntroEffect();
+      setState(() => _screenState = AppScreenState.result);
+    }
+    Future.delayed(const Duration(milliseconds: 50), () {
+      if (!mounted) return;
+      setState(() {});
+    });
   }
-
-  _introAnimationDone = false;
-_introFinishScheduled = false;
-_introEffectPlayedRows.clear();
-_introMainSoundPlayed = false;
-
-  await _loadEvents();
-  _startLifeCountdown();
-
-
-
-  if (mounted) {
-  _playResultIntroEffect();
-  setState(() => _screenState = AppScreenState.result);
-}
-  Future.delayed(const Duration(milliseconds: 50), () {
-  if (!mounted) return;
-  setState(() {});
-}); 
-}
 
   Future<void> _createInitialEvents() async {
     if (_deviceKey == null) return;
@@ -931,7 +919,7 @@ _introMainSoundPlayed = false;
   }
 
   Future<void> _loadEvents() async {
-   if (_deviceKey == null) return;
+    if (_deviceKey == null) return;
     final snap = await FirebaseFirestore.instance
         .collection('users')
         .doc(_deviceKey)
@@ -956,152 +944,148 @@ _introMainSoundPlayed = false;
 
     _lifeTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted || _targetDate == null) return;
-     if (_soundEnabled) {
-  HapticFeedback.selectionClick();
-  SystemSound.play(SystemSoundType.click);
-}
+      if (_soundEnabled) {
+        HapticFeedback.selectionClick();
+        SystemSound.play(SystemSoundType.click);
+      }
       final diff = _targetDate!.difference(DateTime.now());
       setState(() => _remainingLife = diff.isNegative ? Duration.zero : diff);
     });
   }
 
-void _loadRewardedAd() {
-  if (_isLoadingRewardedAd) return;
-  _isLoadingRewardedAd = true;
+  void _loadRewardedAd() {
+    if (_isLoadingRewardedAd) return;
+    _isLoadingRewardedAd = true;
 
-  Future.delayed(const Duration(seconds: 10), () {
-    if (!mounted) return;
-    if (!_rewardedAdReady) {
-      _isLoadingRewardedAd = false;
-      debugPrint('Rewarded ad timeout, retry allowed');
-      setState(() {});
-    }
-  });
-
-  RewardedAd.load(
-    adUnitId: _rewardedAdUnitId,
-    request: const AdRequest(),
-    rewardedAdLoadCallback: RewardedAdLoadCallback(
-      onAdLoaded: (ad) {
-        debugPrint('Rewarded ad loaded');
-        _rewardedAd = ad;
-        _rewardedAdReady = true;
+    Future.delayed(const Duration(seconds: 10), () {
+      if (!mounted) return;
+      if (!_rewardedAdReady) {
         _isLoadingRewardedAd = false;
-        if (mounted) setState(() {});
-      },
-      onAdFailedToLoad: (error) {
-        debugPrint('Rewarded ad failed: ${error.code} / ${error.message}');
-        _rewardedAd = null;
-        _rewardedAdReady = false;
-        _isLoadingRewardedAd = false;
-        if (mounted) setState(() {});
-      },
-    ),
-  );
-}
+        debugPrint('Rewarded ad timeout, retry allowed');
+        setState(() {});
+      }
+    });
 
-
-void _showRewardedAd({bool recalculate = false}) async {
-final ad = _rewardedAd;
-
-if (ad == null || !_rewardedAdReady) {
-  debugPrint('Rewarded ad not ready yet');
-  _loadRewardedAd();
-  return;
-}
-
-_rewardedAd = null;
-_rewardedAdReady = false;
-
-  bool done = false;
-  bool rewardEarned = false;
-
-  void finishNow() {
-    if (done) return;
-    done = true;
-
-    _calculationTimer?.cancel();
-
-    if (recalculate) {
-      _finishRecalculation(); // 🔥 await YOK → ANINDA GEÇİŞ
-    } else {
-      _finishCalculation();   // 🔥 await YOK → ANINDA GEÇİŞ
-    }
+    RewardedAd.load(
+      adUnitId: _rewardedAdUnitId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          debugPrint('Rewarded ad loaded');
+          _rewardedAd = ad;
+          _rewardedAdReady = true;
+          _isLoadingRewardedAd = false;
+          if (mounted) setState(() {});
+        },
+        onAdFailedToLoad: (error) {
+          debugPrint('Rewarded ad failed: ${error.code} / ${error.message}');
+          _rewardedAd = null;
+          _rewardedAdReady = false;
+          _isLoadingRewardedAd = false;
+          if (mounted) setState(() {});
+        },
+      ),
+    );
   }
 
-  ad.fullScreenContentCallback = FullScreenContentCallback(
-    onAdShowedFullScreenContent: (ad) async {
-      await _pauseAllSounds();
-      _stopFlashEffect(); // 🔥 EKLE
-    },
+  void _showRewardedAd({bool recalculate = false}) async {
+    final ad = _rewardedAd;
 
-    onAdDismissedFullScreenContent: (ad) {
-      ad.dispose();
-
-      _rewardedAd = null;
-      _rewardedAdReady = false;
+    if (ad == null || !_rewardedAdReady) {
+      debugPrint('Rewarded ad not ready yet');
       _loadRewardedAd();
+      return;
+    }
 
-      // 🔥 KAPANIR KAPANMAZ GEÇ
-      if (rewardEarned) {
-        finishNow();
+    _rewardedAd = null;
+    _rewardedAdReady = false;
+
+    bool done = false;
+    bool rewardEarned = false;
+
+    void finishNow() {
+      if (done) return;
+      done = true;
+
+      _calculationTimer?.cancel();
+
+      if (recalculate) {
+        _finishRecalculation();
+      } else {
+        _finishCalculation();
       }
-_startRandomFlashEffect(); // 🔥 EKLE
-      _resumeAllSounds();
-    },
+    }
 
-    onAdFailedToShowFullScreenContent: (ad, error) {
-      ad.dispose();
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (ad) async {
+        await _pauseAllSounds();
+        _stopFlashEffect();
+      },
+      onAdDismissedFullScreenContent: (ad) {
+        ad.dispose();
 
-      _rewardedAd = null;
-      _rewardedAdReady = false;
-      _loadRewardedAd();
+        _rewardedAd = null;
+        _rewardedAdReady = false;
+        _loadRewardedAd();
 
-      _resumeAllSounds();
+        if (rewardEarned) {
+          finishNow();
+        }
+        _startRandomFlashEffect();
+        _resumeAllSounds();
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) {
+        ad.dispose();
 
-      // fallback → yine geç
-      finishNow();
-    },
-  );
+        _rewardedAd = null;
+        _rewardedAdReady = false;
+        _loadRewardedAd();
 
-  ad.show(
-    onUserEarnedReward: (_, __) {
-      rewardEarned = true; // sadece işaret
-    },
-  );
-}
+        _resumeAllSounds();
+        finishNow();
+      },
+    );
 
+    ad.show(
+      onUserEarnedReward: (_, __) {
+        rewardEarned = true;
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context)!;
     if (_screenState == AppScreenState.initializing) {
-  return Scaffold(
-    backgroundColor: Colors.black,
-    body: _loadingSplashUI(),
-  );
-}
+      return Scaffold(
+        backgroundColor: Colors.black,
+        body: _loadingSplashUI(),
+      );
+    }
     Widget child;
 
     switch (_screenState) {
-     case AppScreenState.initializing:
-  child = _loadingSplashUI();
-  break;
+      case AppScreenState.initializing:
+        child = _loadingSplashUI();
+        break;
       case AppScreenState.start:
         child = _startUI(l);
+        break;
+      case AppScreenState.survey: // 🔥 ANKET EKRANI
+        child = _surveyUI(l);
         break;
       case AppScreenState.calculating:
         child = _calculatingUI(l);
         break;
-  case AppScreenState.result:
-  child = RepaintBoundary(
-    key: _shareKey,
-    child: Container(
-      color: Colors.black,
-      child: _resultUI(l),
-    ),
-  );
-  break;
+      case AppScreenState.result:
+        child = RepaintBoundary(
+          key: _shareKey,
+          child: Container(
+            color: Colors.black,
+            child: _resultUI(l),
+          ),
+        );
+        break;
       case AppScreenState.recalculateOffer:
         child = _recalculateOfferUI(l);
         break;
@@ -1117,36 +1101,34 @@ _startRandomFlashEffect(); // 🔥 EKLE
           children: [
             Column(
               children: [
-               Expanded(
-  child: Container(
-    color: Colors.black,
-    child: child,
-  ),
-),
+                Expanded(
+                  child: Container(
+                    color: Colors.black,
+                    child: child,
+                  ),
+                ),
                 _footer(l),
               ],
             ),
-   if (_menuOpen)
-  Positioned.fill(
-    child: GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: () => setState(() => _menuOpen = false),
-      child: Container(color: Colors.black.withOpacity(0.85)),
-    ),
-  ),
-
-if (_menuOpen)
-  Positioned(
-    right: 18,
-    bottom: 140,
-    child: _floatingMenuItems(l),
-  ),
-
-Positioned(
-  right: 18,
-  bottom: 72,
-  child: _floatingLogoButton(),
-),
+            if (_menuOpen)
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.translucent,
+                  onTap: () => setState(() => _menuOpen = false),
+                  child: Container(color: Colors.black.withOpacity(0.85)),
+                ),
+              ),
+            if (_menuOpen)
+              Positioned(
+                right: 18,
+                bottom: 140,
+                child: _floatingMenuItems(l),
+              ),
+            Positioned(
+              right: 18,
+              bottom: 72,
+              child: _floatingLogoButton(),
+            ),
           ],
         ),
       ),
@@ -1160,73 +1142,285 @@ Positioned(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            
             const SizedBox(height: 22),
             _buildTitle(l),
             const SizedBox(height: 16),
-            Text(l.startSubtitle, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 15, height: 1.45)),
+            Text(
+              l.startSubtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 15,
+                height: 1.45,
+              ),
+            ),
             const SizedBox(height: 32),
             _whiteButton(text: l.calculateButton, onPressed: _startCalculation),
             const SizedBox(height: 18),
-            Text(l.oneTimeWarning, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            Text(
+              l.oneTimeWarning,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white38, fontSize: 12),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTitle(AppLocalizations l) {
-  final parts = l.appTitle.split(':');
+  // --- 🔥 HATA VERMEYEN ANKET (SURVEY) UI ---
+  Widget _surveyUI(AppLocalizations l) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${l.surveyStepText} ${_surveyStep + 1} / 4',
+                style: const TextStyle(
+                  color: Colors.white38,
+                  fontFamily: 'Orbitron',
+                  fontSize: 12,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 20),
 
-  if (parts.length > 1) {
-    final first = parts.first.trim();
-    final second = parts.sublist(1).join(':').trim();
+              // Soru 1: Uyku
+              if (_surveyStep == 0) ...[
+                GlitchText(
+                  l.surveyQ1Title,
+                  style: const TextStyle(
+                    fontFamily: 'Orbitron',
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l.surveyQ1Desc,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 30),
+                Text(
+                  '$_sleepHours ${l.surveyQ1Unit}',
+                  style: const TextStyle(
+                    fontFamily: 'Orbitron',
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Slider(
+                  value: _sleepHours.toDouble(),
+                  min: 3,
+                  max: 12,
+                  divisions: 9,
+                  activeColor: Colors.white,
+                  inactiveColor: Colors.white24,
+                  onChanged: (v) => setState(() => _sleepHours = v.toInt()),
+                ),
+              ],
 
-    return Column(
-      children: [
-        Text(
-          '$first:',
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: Colors.white70,
-            fontFamily: 'Orbitron',
-            fontSize: 18, // 🔥 küçük üst başlık
-            fontWeight: FontWeight.w600,
-            letterSpacing: 2,
+              // Soru 2: Zararlı Alışkanlıklar
+              if (_surveyStep == 1) ...[
+                GlitchText(
+                  l.surveyQ2Title,
+                  style: const TextStyle(
+                    fontFamily: 'Orbitron',
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l.surveyQ2Desc,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 30),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _outlineButton(
+                        text: l.surveyQ2OptionNo,
+                        onPressed: () {
+                          setState(() {
+                            _habitsYes = false;
+                            _surveyStep = 2;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _whiteButton(
+                        text: l.surveyQ2OptionYes,
+                        onPressed: () {
+                          setState(() {
+                            _habitsYes = true;
+                            _surveyStep = 2;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
+              // Soru 3: Stres
+              if (_surveyStep == 2) ...[
+                GlitchText(
+                  l.surveyQ3Title,
+                  style: const TextStyle(
+                    fontFamily: 'Orbitron',
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l.surveyQ3Desc,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 30),
+                Text(
+                  '${l.surveyQ3Unit} $_stressLevel',
+                  style: const TextStyle(
+                    fontFamily: 'Orbitron',
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Slider(
+                  value: _stressLevel.toDouble(),
+                  min: 1,
+                  max: 10,
+                  divisions: 9,
+                  activeColor: Colors.white,
+                  inactiveColor: Colors.white24,
+                  onChanged: (v) => setState(() => _stressLevel = v.toInt()),
+                ),
+              ],
+
+              // Soru 4: Spor / Aktivite
+              if (_surveyStep == 3) ...[
+                GlitchText(
+                  l.surveyQ4Title,
+                  style: const TextStyle(
+                    fontFamily: 'Orbitron',
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  l.surveyQ4Desc,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 30),
+                Text(
+                  '$_exerciseDays ${l.surveyQ4Unit}',
+                  style: const TextStyle(
+                    fontFamily: 'Orbitron',
+                    fontSize: 36,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Slider(
+                  value: _exerciseDays.toDouble(),
+                  min: 0,
+                  max: 7,
+                  divisions: 7,
+                  activeColor: Colors.white,
+                  inactiveColor: Colors.white24,
+                  onChanged: (v) => setState(() => _exerciseDays = v.toInt()),
+                ),
+              ],
+
+              const SizedBox(height: 40),
+
+              if (_surveyStep != 1)
+                _whiteButton(
+                  text: _surveyStep == 3
+                      ? l.surveyCalculateButton
+                      : l.surveyNextButton,
+                  onPressed: () {
+                    if (_surveyStep < 3) {
+                      setState(() => _surveyStep++);
+                    } else {
+                      _proceedToCalculatingTimer();
+                    }
+                  },
+                ),
+            ],
           ),
         ),
-        const SizedBox(height: 6),
-       GlitchText(
-  second.toUpperCase(),
-  style: const TextStyle(
-    fontFamily: 'Orbitron',
-    color: Colors.white,
-    fontSize: 34,
-    fontWeight: FontWeight.w900,
-    letterSpacing: 4,
-  ),
-),
-      ],
+      ),
     );
   }
 
-  // : yoksa normal göster
-  return Text(
-    l.appTitle,
-    textAlign: TextAlign.center,
-   style: const TextStyle(
-  fontFamily: 'Orbitron', // EKLE
-  color: Colors.white,
-  fontSize: 38,
-  fontWeight: FontWeight.w900,
-  letterSpacing: 4,
-),
-  );
-}
+  Widget _buildTitle(AppLocalizations l) {
+    final parts = l.appTitle.split(':');
 
+    if (parts.length > 1) {
+      final first = parts.first.trim();
+      final second = parts.sublist(1).join(':').trim();
 
+      return Column(
+        children: [
+          Text(
+            '$first:',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontFamily: 'Orbitron',
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 2,
+            ),
+          ),
+          const SizedBox(height: 6),
+          GlitchText(
+            second.toUpperCase(),
+            style: const TextStyle(
+              fontFamily: 'Orbitron',
+              color: Colors.white,
+              fontSize: 34,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 4,
+            ),
+          ),
+        ],
+      );
+    }
 
-
+    return Text(
+      l.appTitle,
+      textAlign: TextAlign.center,
+      style: const TextStyle(
+        fontFamily: 'Orbitron',
+        color: Colors.white,
+        fontSize: 38,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 4,
+      ),
+    );
+  }
 
   Widget _calculatingUI(AppLocalizations l) {
     final minutes = _calculationLeft ~/ 60;
@@ -1238,33 +1432,32 @@ Positioned(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-          const Icon(
-  Icons.auto_awesome,
-  color: Colors.white,
-  size: 50,
-),
-const SizedBox(height: 20),
-          
+            const Icon(
+              Icons.auto_awesome,
+              color: Colors.white,
+              size: 50,
+            ),
+            const SizedBox(height: 20),
             GlitchText(
-  l.calculatingTitle,
-  style: const TextStyle(
-    fontFamily: 'Orbitron',
-    color: Colors.white,
-    fontSize: 27,
-    fontWeight: FontWeight.w800,
-  ),
-),
+              l.calculatingTitle,
+              style: const TextStyle(
+                fontFamily: 'Orbitron',
+                color: Colors.white,
+                fontSize: 27,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 14),
             Text(
-  '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
-  style: const TextStyle(
-    fontFamily: 'Orbitron',
-    color: Colors.white,
-    fontSize: 68,
-    fontWeight: FontWeight.w900,
-    letterSpacing: 2,
-  ),
-),
+              '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}',
+              style: const TextStyle(
+                fontFamily: 'Orbitron',
+                color: Colors.white,
+                fontSize: 68,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 2,
+              ),
+            ),
             const SizedBox(height: 10),
             Text(l.estimatedTime, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white60)),
             const SizedBox(height: 18),
@@ -1278,10 +1471,6 @@ const SizedBox(height: 20),
   }
 
   Widget _resultUI(AppLocalizations l) {
-
- 
-//_scheduleIntroFinish();
-
     final years = _remainingLife.inDays ~/ 365;
     final days = _remainingLife.inDays % 365;
     final hours = _remainingLife.inHours % 24;
@@ -1307,31 +1496,29 @@ const SizedBox(height: 20),
 
   Widget _bigTimeRow(int value, String unit, int index) {
     const totalIntroMs = 3750;
-final delay = index * 300;
+    final delay = index * 300;
 
-final duration = Duration(milliseconds: totalIntroMs - delay);
+    final duration = Duration(milliseconds: totalIntroMs - delay);
     final upper = max(value, 1);
 
-
-
-Widget number = _introAnimationDone
-    ? GlitchText(
-        value.toString().padLeft(2, '0'),
-        style: _timeNumberStyle(),
-      )
-    : TweenAnimationBuilder<int>(
-        tween: IntTween(begin: 0, end: upper),
-        duration: duration,
-        curve: Curves.easeOutCubic,
-        builder: (_, animated, __) {
-          final v = min(animated, value);
-
-          return GlitchText(
-            v.toString().padLeft(2, '0'),
+    Widget number = _introAnimationDone
+        ? GlitchText(
+            value.toString().padLeft(2, '0'),
             style: _timeNumberStyle(),
+          )
+        : TweenAnimationBuilder<int>(
+            tween: IntTween(begin: 0, end: upper),
+            duration: duration,
+            curve: Curves.easeOutCubic,
+            builder: (_, animated, __) {
+              final v = min(animated, value);
+
+              return GlitchText(
+                v.toString().padLeft(2, '0'),
+                style: _timeNumberStyle(),
+              );
+            },
           );
-        },
-      );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1339,180 +1526,188 @@ Widget number = _introAnimationDone
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(
-  width: 200,
-  child: Align(
-    alignment: Alignment.centerRight,
-    child: number,
-  ),
-),
+            width: 200,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: number,
+            ),
+          ),
           const SizedBox(width: 22),
-          SizedBox(width: 85, child: Text(unit.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600))),
+          SizedBox(
+            width: 85,
+            child: Text(
+              unit.toUpperCase(),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
 
   TextStyle _timeNumberStyle() {
-    return const TextStyle(color: Colors.white, fontFamily: 'Orbitron', fontSize: 80, fontWeight: FontWeight.w900, height: .86, letterSpacing: -3);
+    return const TextStyle(
+      color: Colors.white,
+      fontFamily: 'Orbitron',
+      fontSize: 80,
+      fontWeight: FontWeight.w900,
+      height: .86,
+      letterSpacing: -3,
+    );
   }
 
-Widget _recalculateOfferUI(AppLocalizations l) {
-  return Padding(
-    padding: const EdgeInsets.all(24),
-    child: Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.auto_awesome, color: Colors.white, size: 50),
-          const SizedBox(height: 20),
+  Widget _recalculateOfferUI(AppLocalizations l) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.auto_awesome, color: Colors.white, size: 50),
+            const SizedBox(height: 20),
+            GlitchText(
+              l.importantEvents,
+              style: const TextStyle(
+                fontFamily: 'Orbitron',
+                color: Colors.white,
+                fontSize: 27,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              l.recalculateDesc,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white70,
+                height: 1.5,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 30),
+            _whiteButton(
+              text: l.recalculateButton,
+              onPressed: _startRecalculation,
+            ),
+            const SizedBox(height: 14),
+            _outlineButton(
+              text: _rewardedAdReady ? l.fastCalculateButton : l.loadingAd,
+              onPressed: () => _showRewardedAd(recalculate: true),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-         GlitchText(
-  l.importantEvents,
-  style: const TextStyle(
-    fontFamily: 'Orbitron',
-    color: Colors.white,
-    fontSize: 27,
-    fontWeight: FontWeight.w900,
-    letterSpacing: 1,
-  ),
-),
+  Widget _floatingLogoButton() {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _menuOpen = !_menuOpen),
+      child: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.black.withOpacity(0.7),
+          border: Border.all(
+            color: Colors.grey.withOpacity(0.35),
+            width: 1.5,
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Image.asset(
+            'assets/icon/logo.png',
+            fit: BoxFit.contain,
+          ),
+        ),
+      ),
+    );
+  }
 
-          const SizedBox(height: 14),
+  Widget _loadingSplashUI() {
+    return Container(
+      color: Colors.black,
+      alignment: Alignment.center,
+      child: AnimatedBuilder(
+        animation: _splashController,
+        builder: (_, child) {
+          final angle = sin(_splashController.value * pi * 2) * 0.08;
 
-          Text(
-            l.recalculateDesc,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white70,
-              height: 1.5,
-              fontSize: 14,
+          return Transform.rotate(
+            angle: angle,
+            child: child,
+          );
+        },
+        child: Image.asset(
+          'assets/icon/logosplash4.png',
+          width: 220,
+        ),
+      ),
+    );
+  }
+
+  Widget _floatingMenuItems(AppLocalizations l) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _floatingItem(l.menuAbout, Icons.info_outline, () => _showAboutFullScreen(l)),
+        _floatingItem(l.menuEvents, Icons.auto_awesome, () => _showEventsFullScreen(l)),
+        _floatingItem(l.menuShare, Icons.ios_share, () => _showShareFullScreen(l)),
+        _floatingItem(l.menuLanguage, Icons.language, () => _showLanguageFullScreen(l)),
+      ],
+    );
+  }
+
+  Widget _floatingItem(String text, IconData icon, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(40),
+          onTap: () {
+            setState(() => _menuOpen = false);
+            onTap();
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  text,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: Colors.black, size: 20),
+                ),
+              ],
             ),
           ),
-
-          const SizedBox(height: 30),
-
-          _whiteButton(
-            text: l.recalculateButton,
-            onPressed: _startRecalculation,
-          ),
-
-          const SizedBox(height: 14),
-
-          _outlineButton(
-            text: _rewardedAdReady ? l.fastCalculateButton : l.loadingAd,
-            onPressed: () => _showRewardedAd(recalculate: true),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-Widget _floatingLogoButton() {
-  return GestureDetector(
-    behavior: HitTestBehavior.opaque,
-    onTap: () => setState(() => _menuOpen = !_menuOpen),
-    child: Container(
-      width: 60,
-      height: 60,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle, // 🔥 TAM DAİRE
-        color: Colors.black.withOpacity(0.7), // arka hafif koyu
-        border: Border.all(
-          color: Colors.grey.withOpacity(0.35), // 🔥 ince premium çerçeve
-          width: 1.5,
         ),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12), // 🔥 LOGO ORANI DÜZGÜN
-        child: Image.asset(
-          'assets/icon/logo.png',
-          fit: BoxFit.contain, // 🔥 TAŞMAZ, TAM ORTADA
-        ),
-      ),
-    ),
-  );
-}
-
-Widget _loadingSplashUI() {
-  return Container(
-    color: Colors.black,
-    alignment: Alignment.center,
-    child: AnimatedBuilder(
-      animation: _splashController,
-      builder: (_, child) {
-        final angle = sin(_splashController.value * pi * 2) * 0.08;
-
-        return Transform.rotate(
-          angle: angle,
-          child: child,
-        );
-      },
-      child: Image.asset(
-        'assets/icon/logosplash4.png',
-        width: 220,
-      ),
-    ),
-  );
-}
-
-
-Widget _floatingMenuItems(AppLocalizations l) {
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.end,
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      _floatingItem(l.menuAbout, Icons.info_outline, () => _showAboutFullScreen(l)),
-      _floatingItem(l.menuEvents, Icons.auto_awesome, () => _showEventsFullScreen(l)),
-      _floatingItem(l.menuShare, Icons.ios_share, () => _showShareFullScreen(l)),
-      _floatingItem(l.menuLanguage, Icons.language, () => _showLanguageFullScreen(l)),
-    ],
-  );
-}
-
-Widget _floatingItem(String text, IconData icon, VoidCallback onTap) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(40),
-        onTap: () {
-          setState(() => _menuOpen = false);
-          onTap();
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                text,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-fontWeight: FontWeight.w600,
-letterSpacing: 0.5,
-                 
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                width: 42,
-                height: 42,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: Colors.black, size: 20),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
-}
+    );
+  }
 
   void _showFullScreenPanel({required String title, required Widget child}) {
     showGeneralDialog(
@@ -1527,185 +1722,193 @@ letterSpacing: 0.5,
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 14, 8, 8),
-                  child: Row(children: [Expanded(child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900))), IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.close, color: Colors.white, size: 30))]),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                      ),
+                    ],
+                  ),
                 ),
                 Expanded(child: child),
               ],
-            ), 
+            ),
           ),
         );
       },
     );
   }
 
-void _showAboutFullScreen(AppLocalizations l) {
-  _showFullScreenPanel(
-    title: l.aboutTitle,
-    child: ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-        Text(
-          l.aboutHeader,
-          style: const TextStyle(
-            color: Color(0xff83ff86),
-            fontSize: 18,
-            letterSpacing: 1.5,
-            fontWeight: FontWeight.bold,
+  void _showAboutFullScreen(AppLocalizations l) {
+    _showFullScreenPanel(
+      title: l.aboutTitle,
+      child: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          Text(
+            l.aboutHeader,
+            style: const TextStyle(
+              color: Color(0xff83ff86),
+              fontSize: 18,
+              letterSpacing: 1.5,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        ),
-        const SizedBox(height: 22),
-        Text(l.aboutText1, style: const TextStyle(color: Colors.white70,  fontSize: 14, height: 1.55)),
-        const SizedBox(height: 14),
-        Text(l.aboutText2, style: const TextStyle(color: Colors.white70,  fontSize: 14, height: 1.55)),
-        const SizedBox(height: 14),
-        Text(l.aboutText3, style: const TextStyle(color: Colors.white70,  fontSize: 14, height: 1.55)),
-      ],
-    ),
-  );
-}
-
-  void _showEventsModal() async => _showEventsFullScreen(AppLocalizations.of(context)!);
-
- void _showEventsFullScreen(AppLocalizations l) async {
-  await _loadEvents();
-  if (!mounted) return;
-
-  _showFullScreenPanel(
-    title: l.menuEvents,
-    child: _events.isEmpty
-        ? Center(child: Text(l.noEventYet, style: const TextStyle(color: Colors.white70)))
-        : ListView.separated(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-            itemCount: _events.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (_, index) => _fateLine(_events[index]),
-          ),
-  );
-}
-
-String _formatDeltaFromMinutes(int minutes, AppLocalizations l) {
-  final negative = minutes < 0;
-  int total = minutes.abs();
-
-  final years = total ~/ (365 * 24 * 60);
-  total %= 365 * 24 * 60;
-
-  final months = total ~/ (30 * 24 * 60);
-  total %= 30 * 24 * 60;
-
-  final days = total ~/ (24 * 60);
-  total %= 24 * 60;
-
-  final hours = total ~/ 60;
-  final mins = total % 60;
-
-  final parts = <String>[];
-
-  // Dil dosyasından çekiyoruz: l.yearsUnit, l.monthsUnit vb.
-  if (years > 0) parts.add('$years ${l.years.toLowerCase()}');
- if (months > 0) parts.add('$months month');
-  if (days > 0) parts.add('$days ${l.days.toLowerCase()}');
-  if (hours > 0) parts.add('$hours ${l.hours.toLowerCase()}');
-  if (mins > 0) parts.add('$mins ${l.minutes.toLowerCase()}');
-
-  final text = parts.isEmpty ? '0 ${l.minutes.toLowerCase()}' : parts.join(' ');
-  return '${negative ? '-' : '+'}$text';
-}
-
-
- Widget _fateLine(Map<String, dynamic> e) {
- final l = AppLocalizations.of(context)!; // Bu satırın olduğundan emin ol
- 
-  final int deltaMinutes = e['delta_minutes'] != null
-      ? int.tryParse('${e['delta_minutes']}') ?? 0
-      : (int.tryParse('${e['days_delta'] ?? 0}') ?? 0) * 1440;
-
-  final bool plus = deltaMinutes >= 0;
-
-  String dateText = '--.--.---- --:--';
-  final createdAt = e['created_at'];
-
-  if (createdAt is Timestamp) {
-    final d = createdAt.toDate();
-    dateText =
-        '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year} '
-        '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+          const SizedBox(height: 22),
+          Text(l.aboutText1, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.55)),
+          const SizedBox(height: 14),
+          Text(l.aboutText2, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.55)),
+          const SizedBox(height: 14),
+          Text(l.aboutText3, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.55)),
+        ],
+      ),
+    );
   }
 
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 15),
-    decoration: const BoxDecoration(
-      border: Border(
-        bottom: BorderSide(color: Color(0xff123018), width: 1),
+  void _showEventsFullScreen(AppLocalizations l) async {
+    await _loadEvents();
+    if (!mounted) return;
+
+    _showFullScreenPanel(
+      title: l.menuEvents,
+      child: _events.isEmpty
+          ? Center(child: Text(l.noEventYet, style: const TextStyle(color: Colors.white70)))
+          : ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+              itemCount: _events.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (_, index) => _fateLine(_events[index]),
+            ),
+    );
+  }
+
+  String _formatDeltaFromMinutes(int minutes, AppLocalizations l) {
+    final negative = minutes < 0;
+    int total = minutes.abs();
+
+    final years = total ~/ (365 * 24 * 60);
+    total %= 365 * 24 * 60;
+
+    final months = total ~/ (30 * 24 * 60);
+    total %= 30 * 24 * 60;
+
+    final days = total ~/ (24 * 60);
+    total %= 24 * 60;
+
+    final hours = total ~/ 60;
+    final mins = total % 60;
+
+    final parts = <String>[];
+
+    if (years > 0) parts.add('$years ${l.years.toLowerCase()}');
+    if (months > 0) parts.add('$months month');
+    if (days > 0) parts.add('$days ${l.days.toLowerCase()}');
+    if (hours > 0) parts.add('$hours ${l.hours.toLowerCase()}');
+    if (mins > 0) parts.add('$mins ${l.minutes.toLowerCase()}');
+
+    final text = parts.isEmpty ? '0 ${l.minutes.toLowerCase()}' : parts.join(' ');
+    return '${negative ? '-' : '+'}$text';
+  }
+
+  Widget _fateLine(Map<String, dynamic> e) {
+    final l = AppLocalizations.of(context)!;
+
+    final int deltaMinutes = e['delta_minutes'] != null
+        ? int.tryParse('${e['delta_minutes']}') ?? 0
+        : (int.tryParse('${e['days_delta'] ?? 0}') ?? 0) * 1440;
+
+    final bool plus = deltaMinutes >= 0;
+
+    String dateText = '--.--.---- --:--';
+    final createdAt = e['created_at'];
+
+    if (createdAt is Timestamp) {
+      final d = createdAt.toDate();
+      dateText =
+          '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year} '
+          '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 15),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Color(0xff123018), width: 1),
+        ),
       ),
-    ),
-    child: Row(
-      children: [
-        
-        const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            dateText,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Color(0xff70ff7c),
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              letterSpacing: .4,
-             
-            ),
-          ),
-        ),
-        
-        Flexible(
-          child: Text(
-            _formatDeltaFromMinutes(deltaMinutes, l), // l parametresini ekledik
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              color: plus ? const Color(0xff70ff7c) : const Color(0xffff5d5d),
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              
-            ),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-
-void _showShareFullScreen(AppLocalizations l) {
-  _showFullScreenPanel(
-    title: l.shareTitle,
-    child: Padding(
-      padding: const EdgeInsets.all(22),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          _whiteButton(
-            text: l.shareImage,
-            onPressed: _captureAndShareScreenshot,
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              dateText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Color(0xff70ff7c),
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                letterSpacing: .4,
+              ),
+            ),
           ),
-          const SizedBox(height: 16),
-          _outlineButton(
-            text: l.shareText,
-            onPressed: () {
-              final appLink = Platform.isAndroid
-                  ? 'https://play.google.com/store/apps/details?id=com.gerisayim.app'
-                  : 'https://apps.apple.com/app/idXXXXXXXX'; // 🔥 iOS placeholder
-
-              Share.share('${l.shareDefaultText}\n$appLink');
-            },
+          Flexible(
+            child: Text(
+              _formatDeltaFromMinutes(deltaMinutes, l),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: plus ? const Color(0xff70ff7c) : const Color(0xffff5d5d),
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
           ),
         ],
       ),
-    ),
-  );
-}
+    );
+  }
+
+  void _showShareFullScreen(AppLocalizations l) {
+    _showFullScreenPanel(
+      title: l.shareTitle,
+      child: Padding(
+        padding: const EdgeInsets.all(22),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _whiteButton(
+              text: l.shareImage,
+              onPressed: _captureAndShareScreenshot,
+            ),
+            const SizedBox(height: 16),
+            _outlineButton(
+              text: l.shareText,
+              onPressed: () {
+                final appLink = Platform.isAndroid
+                    ? 'https://play.google.com/store/apps/details?id=com.gerisayim.app'
+                    : 'https://apps.apple.com/app/idXXXXXXXX';
+
+                Share.share('${l.shareDefaultText}\n$appLink');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Future<void> _captureAndShareScreenshot() async {
     try {
@@ -1718,71 +1921,70 @@ void _showShareFullScreen(AppLocalizations l) {
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/gerisayim_counter.png');
       await file.writeAsBytes(bytes);
-     final l = AppLocalizations.of(context)!;
-await Share.shareXFiles([XFile(file.path)], text: l.shareDefaultText);
+      final l = AppLocalizations.of(context)!;
+      await Share.shareXFiles([XFile(file.path)], text: l.shareDefaultText);
     } catch (e) {
       debugPrint('Share screenshot error: $e');
     }
   }
 
-
-void _showLanguageFullScreen(AppLocalizations l) {
-  _showFullScreenPanel(
-    title: l.menuLanguage,
-    child: ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      children: [
-        _languageTile('العربية', const Locale('ar')),
-        _languageTile('Български', const Locale('bg')),
-        _languageTile('বাংলা', const Locale('bn')),
-        _languageTile('Català', const Locale('ca')),
-        _languageTile('Čeština', const Locale('cs')),
-        _languageTile('Dansk', const Locale('da')),
-        _languageTile('Deutsch', const Locale('de')),
-        _languageTile('Ελληνικά', const Locale('el')),
-        _languageTile('English', const Locale('en')),
-        _languageTile('Español', const Locale('es')),
-        _languageTile('Eesti', const Locale('et')),
-        _languageTile('Suomi', const Locale('fi')),
-        _languageTile('Filipino', const Locale('fil')),
-        _languageTile('Français', const Locale('fr')),
-        _languageTile('ગુજરાતી', const Locale('gu')),
-        _languageTile('עברית', const Locale('he')),
-        _languageTile('हिन्दी', const Locale('hi')),
-        _languageTile('Hrvatski', const Locale('hr')),
-        _languageTile('Magyar', const Locale('hu')),
-        _languageTile('Bahasa Indonesia', const Locale('id')),
-        _languageTile('Italiano', const Locale('it')),
-        _languageTile('日本語', const Locale('ja')),
-        _languageTile('ಕನ್ನಡ', const Locale('kn')),
-        _languageTile('한국어', const Locale('ko')),
-        _languageTile('Lietuvių', const Locale('lt')),
-        _languageTile('Latviešu', const Locale('lv')),
-        _languageTile('മലയാളം', const Locale('ml')),
-        _languageTile('मराठी', const Locale('mr')),
-        _languageTile('Bahasa Melayu', const Locale('ms')),
-        _languageTile('Nederlands', const Locale('nl')),
-        _languageTile('Norsk', const Locale('no')),
-        _languageTile('ਪੰਜਾਬੀ', const Locale('pa')),
-        _languageTile('Polski', const Locale('pl')),
-        _languageTile('Português', const Locale('pt')),
-        _languageTile('Română', const Locale('ro')),
-        _languageTile('Русский', const Locale('ru')),
-        _languageTile('Slovenčina', const Locale('sk')),
-        _languageTile('Slovenščina', const Locale('sl')),
-        _languageTile('Svenska', const Locale('sv')),
-        _languageTile('தமிழ்', const Locale('ta')),
-        _languageTile('తెలుగు', const Locale('te')),
-        _languageTile('ไทย', const Locale('th')),
-        _languageTile('Türkçe', const Locale('tr')),
-        _languageTile('Українська', const Locale('uk')),
-        _languageTile('اردو', const Locale('ur')),
-        _languageTile('Tiếng Việt', const Locale('vi')),
-        _languageTile('中文', const Locale('zh')),
-      ],
-    ),
-  );
-}
+  void _showLanguageFullScreen(AppLocalizations l) {
+    _showFullScreenPanel(
+      title: l.menuLanguage,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        children: [
+          _languageTile('العربية', const Locale('ar')),
+          _languageTile('Български', const Locale('bg')),
+          _languageTile('বাংলা', const Locale('bn')),
+          _languageTile('Català', const Locale('ca')),
+          _languageTile('Čeština', const Locale('cs')),
+          _languageTile('Dansk', const Locale('da')),
+          _languageTile('Deutsch', const Locale('de')),
+          _languageTile('Ελληνικά', const Locale('el')),
+          _languageTile('English', const Locale('en')),
+          _languageTile('Español', const Locale('es')),
+          _languageTile('Eesti', const Locale('et')),
+          _languageTile('Suomi', const Locale('fi')),
+          _languageTile('Filipino', const Locale('fil')),
+          _languageTile('Français', const Locale('fr')),
+          _languageTile('ગુજરાતી', const Locale('gu')),
+          _languageTile('עברית', const Locale('he')),
+          _languageTile('हिन्दी', const Locale('hi')),
+          _languageTile('Hrvatski', const Locale('hr')),
+          _languageTile('Magyar', const Locale('hu')),
+          _languageTile('Bahasa Indonesia', const Locale('id')),
+          _languageTile('Italiano', const Locale('it')),
+          _languageTile('日本語', const Locale('ja')),
+          _languageTile('ಕನ್ನಡ', const Locale('kn')),
+          _languageTile('한국어', const Locale('ko')),
+          _languageTile('Lietuvių', const Locale('lt')),
+          _languageTile('Latviešu', const Locale('lv')),
+          _languageTile('മലയാളം', const Locale('ml')),
+          _languageTile('मराठी', const Locale('mr')),
+          _languageTile('Bahasa Melayu', const Locale('ms')),
+          _languageTile('Nederlands', const Locale('nl')),
+          _languageTile('Norsk', const Locale('no')),
+          _languageTile('ਪੰਜਾਬੀ', const Locale('pa')),
+          _languageTile('Polski', const Locale('pl')),
+          _languageTile('Português', const Locale('pt')),
+          _languageTile('Română', const Locale('ro')),
+          _languageTile('Русский', const Locale('ru')),
+          _languageTile('Slovenčina', const Locale('sk')),
+          _languageTile('Slovenščina', const Locale('sl')),
+          _languageTile('Svenska', const Locale('sv')),
+          _languageTile('தமிழ்', const Locale('ta')),
+          _languageTile('తెలుగు', const Locale('te')),
+          _languageTile('ไทย', const Locale('th')),
+          _languageTile('Türkçe', const Locale('tr')),
+          _languageTile('Українська', const Locale('uk')),
+          _languageTile('اردو', const Locale('ur')),
+          _languageTile('Tiếng Việt', const Locale('vi')),
+          _languageTile('中文', const Locale('zh')),
+        ],
+      ),
+    );
+  }
 
   Widget _languageTile(String title, Locale locale) {
     return ListTile(
@@ -1798,16 +2000,48 @@ void _showLanguageFullScreen(AppLocalizations l) {
   Widget _footer(AppLocalizations l) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(18, 4, 18, 10),
-      child: Text(l.footerWarning, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white24, fontSize: 10)),
+      child: Text(
+        l.footerWarning,
+        textAlign: TextAlign.center,
+        style: const TextStyle(color: Colors.white24, fontSize: 10),
+      ),
     );
   }
 
   Widget _whiteButton({required String text, required VoidCallback onPressed}) {
-    return SizedBox(width: double.infinity, height: 54, child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))), onPressed: onPressed, child: Text(text, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w900))));
+    return SizedBox(
+      width: double.infinity,
+      height: 54,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+        onPressed: onPressed,
+        child: Text(
+          text,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
+      ),
+    );
   }
 
   Widget _outlineButton({required String text, required VoidCallback onPressed}) {
-    return SizedBox(width: double.infinity, height: 52, child: OutlinedButton(style: OutlinedButton.styleFrom(foregroundColor: Colors.white, side: const BorderSide(color: Colors.white), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))), onPressed: onPressed, child: Text(text, textAlign: TextAlign.center)));
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          side: const BorderSide(color: Colors.white),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        ),
+        onPressed: onPressed,
+        child: Text(text, textAlign: TextAlign.center),
+      ),
+    );
   }
 }
 
@@ -1854,11 +2088,19 @@ class _GlitchTextState extends State<GlitchText> {
       children: [
         Transform.translate(
           offset: Offset(dx1, 0),
-          child: Text(widget.text, textAlign: TextAlign.center, style: widget.style.copyWith(color: Colors.redAccent.withOpacity(0.75))),
+          child: Text(
+            widget.text,
+            textAlign: TextAlign.center,
+            style: widget.style.copyWith(color: Colors.redAccent.withOpacity(0.75)),
+          ),
         ),
         Transform.translate(
           offset: Offset(dx2, 0),
-          child: Text(widget.text, textAlign: TextAlign.center, style: widget.style.copyWith(color: Colors.cyanAccent.withOpacity(0.75))),
+          child: Text(
+            widget.text,
+            textAlign: TextAlign.center,
+            style: widget.style.copyWith(color: Colors.cyanAccent.withOpacity(0.75)),
+          ),
         ),
         Text(widget.text, textAlign: TextAlign.center, style: widget.style),
       ],

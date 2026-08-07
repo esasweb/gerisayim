@@ -175,4 +175,64 @@ class AppLocalizationsSr extends AppLocalizations {
 
   @override
   String get noEventYet => 'Још нема промене судбине.';
+
+  @override
+  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+
+  @override
+  String surveyStepText(Object step) {
+    return 'ANALYSIS $step / 4';
+  }
+
+  @override
+  String get surveyNextButton => 'NEXT';
+
+  @override
+  String get surveyCalculateButton => 'CALCULATE DESTINY';
+
+  @override
+  String get surveyQ1Title => 'SLEEP PATTERN';
+
+  @override
+  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+
+  @override
+  String surveyQ1Unit(Object hours) {
+    return '$hours HOURS';
+  }
+
+  @override
+  String get surveyQ2Title => 'HABITS & TOXINS';
+
+  @override
+  String get surveyQ2Desc =>
+      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+
+  @override
+  String get surveyQ2OptionYes => 'YES';
+
+  @override
+  String get surveyQ2OptionNo => 'NO';
+
+  @override
+  String get surveyQ3Title => 'STRESS & ANXIETY';
+
+  @override
+  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+
+  @override
+  String surveyQ3Unit(Object level) {
+    return 'LEVEL $level';
+  }
+
+  @override
+  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+
+  @override
+  String get surveyQ4Desc => 'How many days a week do you exercise?';
+
+  @override
+  String surveyQ4Unit(Object days) {
+    return '$days DAYS';
+  }
 }

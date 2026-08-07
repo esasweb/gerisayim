@@ -51,5 +51,22 @@
   "recalculateTitle": "Important Developments",
   "recalculateDesc": "A new mark appeared in his destiny. The remaining time must be recalculated.",
   "recalculateButton": "CALCULATE AGAIN",
-  "noEventYet": "No change of fate yet."
+  "noEventYet": "No change of fate yet.", 
+  "surveyTitle": "RISK & LIFE ANALYSIS",
+  "surveyStepText": "ANALYSIS {step} / 4",
+  "surveyNextButton": "NEXT",
+  "surveyCalculateButton": "CALCULATE DESTINY",
+  "surveyQ1Title": "SLEEP PATTERN",
+  "surveyQ1Desc": "How many hours do you sleep daily on average?",
+  "surveyQ1Unit": "{hours} HOURS",
+  "surveyQ2Title": "HABITS & TOXINS",
+  "surveyQ2Desc": "Do you regularly consume tobacco, alcohol, or heavy caffeine?",
+  "surveyQ2OptionYes": "YES",
+  "surveyQ2OptionNo": "NO",
+  "surveyQ3Title": "STRESS & ANXIETY",
+  "surveyQ3Desc": "Rate your daily stress level (1 - 10):",
+  "surveyQ3Unit": "LEVEL {level}",
+  "surveyQ4Title": "PHYSICAL ACTIVITY",
+  "surveyQ4Desc": "How many days a week do you exercise?",
+  "surveyQ4Unit": "{days} DAYS"
 }

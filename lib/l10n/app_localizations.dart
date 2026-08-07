@@ -503,6 +503,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No change of fate yet.'**
   String get noEventYet;
+
+  /// No description provided for @surveyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'RISK & LIFE ANALYSIS'**
+  String get surveyTitle;
+
+  /// No description provided for @surveyStepText.
+  ///
+  /// In en, this message translates to:
+  /// **'ANALYSIS {step} / 4'**
+  String surveyStepText(Object step);
+
+  /// No description provided for @surveyNextButton.
+  ///
+  /// In en, this message translates to:
+  /// **'NEXT'**
+  String get surveyNextButton;
+
+  /// No description provided for @surveyCalculateButton.
+  ///
+  /// In en, this message translates to:
+  /// **'CALCULATE DESTINY'**
+  String get surveyCalculateButton;
+
+  /// No description provided for @surveyQ1Title.
+  ///
+  /// In en, this message translates to:
+  /// **'SLEEP PATTERN'**
+  String get surveyQ1Title;
+
+  /// No description provided for @surveyQ1Desc.
+  ///
+  /// In en, this message translates to:
+  /// **'How many hours do you sleep daily on average?'**
+  String get surveyQ1Desc;
+
+  /// No description provided for @surveyQ1Unit.
+  ///
+  /// In en, this message translates to:
+  /// **'{hours} HOURS'**
+  String surveyQ1Unit(Object hours);
+
+  /// No description provided for @surveyQ2Title.
+  ///
+  /// In en, this message translates to:
+  /// **'HABITS & TOXINS'**
+  String get surveyQ2Title;
+
+  /// No description provided for @surveyQ2Desc.
+  ///
+  /// In en, this message translates to:
+  /// **'Do you regularly consume tobacco, alcohol, or heavy caffeine?'**
+  String get surveyQ2Desc;
+
+  /// No description provided for @surveyQ2OptionYes.
+  ///
+  /// In en, this message translates to:
+  /// **'YES'**
+  String get surveyQ2OptionYes;
+
+  /// No description provided for @surveyQ2OptionNo.
+  ///
+  /// In en, this message translates to:
+  /// **'NO'**
+  String get surveyQ2OptionNo;
+
+  /// No description provided for @surveyQ3Title.
+  ///
+  /// In en, this message translates to:
+  /// **'STRESS & ANXIETY'**
+  String get surveyQ3Title;
+
+  /// No description provided for @surveyQ3Desc.
+  ///
+  /// In en, this message translates to:
+  /// **'Rate your daily stress level (1 - 10):'**
+  String get surveyQ3Desc;
+
+  /// No description provided for @surveyQ3Unit.
+  ///
+  /// In en, this message translates to:
+  /// **'LEVEL {level}'**
+  String surveyQ3Unit(Object level);
+
+  /// No description provided for @surveyQ4Title.
+  ///
+  /// In en, this message translates to:
+  /// **'PHYSICAL ACTIVITY'**
+  String get surveyQ4Title;
+
+  /// No description provided for @surveyQ4Desc.
+  ///
+  /// In en, this message translates to:
+  /// **'How many days a week do you exercise?'**
+  String get surveyQ4Desc;
+
+  /// No description provided for @surveyQ4Unit.
+  ///
+  /// In en, this message translates to:
+  /// **'{days} DAYS'**
+  String surveyQ4Unit(Object days);
 }
 
 class _AppLocalizationsDelegate
