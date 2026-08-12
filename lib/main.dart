@@ -1933,11 +1933,7 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     final parts = <String>[];
 
     if (years > 0) parts.add('$years ${l.years.toLowerCase()}');
-    // NOT: AppLocalizations içinde 'months' getter'ı tanımlı değil
-    // (derleme hatası veriyordu), bu yüzden sabit 'month' metni kullanıyoruz.
-    // İstersen kendi l10n dosyana bir 'months' anahtarı ekleyip burayı
-    // l.months.toLowerCase() ile değiştirebilirsin.
-    if (months > 0) parts.add('$months month');
+    if (months > 0) parts.add('$months ${l.months.toLowerCase()}');
     if (days > 0) parts.add('$days ${l.days.toLowerCase()}');
     if (hours > 0) parts.add('$hours ${l.hours.toLowerCase()}');
     if (mins > 0) parts.add('$mins ${l.minutes.toLowerCase()}');

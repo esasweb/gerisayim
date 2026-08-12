@@ -166,7 +166,7 @@ class AppLocalizationsCa extends AppLocalizations {
   String get menuShare => 'Comparteix pantalla';
 
   @override
-  String get menuLanguage => 'Canviar Idioma';
+  String get menuLanguage => 'Canvia l\'idioma';
 
   @override
   String get recalculateTitle => 'Evolucions importants';

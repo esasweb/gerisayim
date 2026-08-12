@@ -150,7 +150,7 @@ class AppLocalizationsBn extends AppLocalizations {
   String get shareText => 'লিঙ্ক হিসাবে অ্যাপ্লিকেশন শেয়ার করুন';
 
   @override
-  String get shareDefaultText => 'আমি আমার মৃত্যুর পাল্টা দেখলাম। আপনিও দেখুন।';
+  String get shareDefaultText => 'আমি আমার মৃত্যুর পাল্টা দেখেছি। আপনিও দেখুন।';
 
   @override
   String get menuAbout => 'সম্পর্কে';
