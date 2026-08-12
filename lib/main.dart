@@ -121,7 +121,8 @@ class _MyAppState extends State<MyApp> {
     if (saved != null && saved.isNotEmpty) {
       setState(() => _locale = Locale(saved));
     } else {
-      setState(() => _locale = Locale(PlatformDispatcher.instance.locale.languageCode));
+      setState(() =>
+          _locale = Locale(PlatformDispatcher.instance.locale.languageCode));
     }
   }
 
@@ -159,7 +160,7 @@ class _MyAppState extends State<MyApp> {
 enum AppScreenState {
   initializing,
   start,
-  survey, // 🔥 Anket Ekranı
+  survey,
   calculating,
   result,
   recalculateOffer,
@@ -175,7 +176,7 @@ class DeathCalculatorPage extends StatefulWidget {
 
 class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     with SingleTickerProviderStateMixin {
-  static const int calculationSeconds = 60;
+  int calculationSeconds = 60; // Firestore'dan dinamik çekilecek (app_config/settings.sayim)
 
   final GlobalKey _shareKey = GlobalKey();
   final AudioPlayer _bgPlayer = AudioPlayer();
@@ -186,7 +187,7 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   String? _uid;
   DateTime? _targetDate;
   Duration _remainingLife = Duration.zero;
-  int _calculationLeft = calculationSeconds;
+  int _calculationLeft = 60;
 
   Timer? _lifeTimer;
   Timer? _calculationTimer;
@@ -207,7 +208,7 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   List<Map<String, dynamic>> _events = [];
   DateTime? _introStartTime;
 
-  // --- 🔥 ANKET / FEATURE TOGGLE DEĞİŞKENLERİ ---
+  // --- ANKET DEĞİŞKENLERİ ---
   bool _showSurveyConfig = false;
   int _surveyStep = 0;
   int _sleepHours = 7;
@@ -243,9 +244,16 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
       _startPlayer.play(AssetSource('icon/start.mp3'), volume: 0);
     });
     _startRandomFlashEffect();
-    _initApp();
-    _loadRewardedAd();
 
+    // === DÜZELTME #1: BİLDİRİM İZNİ DİYALOGU İLK FRAME'DEN ÖNCE ÇAĞRILIYORDU ===
+    // showDialog() context henüz tam hazır olmadan çağrılırsa dialog sessizce
+    // açılmayabiliyor ve _initApp() içindeki try/catch bu hatayı yutuyordu.
+    // addPostFrameCallback ile ilk frame çizildikten sonra çalıştırıyoruz.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initApp();
+    });
+
+    _loadRewardedAd();
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) _loadRewardedAd();
     });
@@ -424,6 +432,11 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
           );
         },
         onAdFailedToLoad: (error) {
+          // NOT: Reklam yüklenemiyorsa buradaki error.code / error.message
+          // AdMob konsolundaki sorunu (unit ID, doldurma oranı, ATT izni vb.)
+          // teşhis etmek için en önemli ipucu. flutter logs ile izleyin.
+          debugPrint(
+              'Interstitial ad failed to load: ${error.code} / ${error.message}');
           _interstitialReady = false;
         },
       ),
@@ -471,7 +484,6 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     setState(() => _screenState = AppScreenState.recalculateOffer);
   }
 
-  // --- 🔥 FIRESTORE ANKET KONTROLÜ ---
   Future<void> _checkSurveyConfig() async {
     try {
       final doc = await FirebaseFirestore.instance
@@ -480,114 +492,17 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
           .get();
 
       if (doc.exists && doc.data() != null) {
-        final val = doc.data()!['show_survey'];
+        final data = doc.data()!;
+        final val = data['show_survey'];
         _showSurveyConfig = (val == 1 || val == true);
+
+        if (data.containsKey('sayim')) {
+          calculationSeconds = int.tryParse('${data['sayim']}') ?? 60;
+        }
       }
     } catch (e) {
       debugPrint('Config fetch error: $e');
       _showSurveyConfig = false;
-    }
-  }
-
-  Future<void> _initApp() async {
-    try {
-      User? user = FirebaseAuth.instance.currentUser;
-      user ??= (await FirebaseAuth.instance.signInAnonymously()).user;
-      if (user == null) throw Exception('Firebase user oluşturulamadı');
-
-      _uid = user.uid;
-      _deviceKey = await _getDeviceKey();
-      final lang = PlatformDispatcher.instance.locale.languageCode;
-
-      await _askNotificationPermissionWithModal();
-
-      String? token;
-      try {
-        token = await FirebaseMessaging.instance.getToken();
-      } catch (_) {
-        token = null;
-      }
-
-      final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-      final userDoc = await userRef.get();
-
-      if (!userDoc.exists) {
-        await userRef.set({
-          'uid': _uid,
-          'language': lang,
-          'fcm_token': token,
-          'recalc_required': false,
-          'active_event_id': null,
-          'active_event_delta_days': null,
-          'last_open_at': FieldValue.serverTimestamp(),
-          'created_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      } else {
-        await userRef.set({
-          'uid': _uid,
-          'language': lang,
-          'fcm_token': token,
-          'last_open_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
-
-      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
-        if (_deviceKey == null) return;
-
-        await FirebaseFirestore.instance.collection('users').doc(_deviceKey).set({
-          'fcm_token': newToken,
-          'updated_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        debugPrint('FCM token refreshed: $newToken');
-      });
-
-      await _ensureUserDefaults();
-      final freshDoc = await userRef.get();
-      final data = freshDoc.data() ?? {};
-
-      if (data['recalc_required'] == true && data['active_event_seen'] != true) {
-        await userRef.set({
-          'active_event_seen': true,
-          'active_event_seen_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        await _loadEvents();
-
-        if (mounted) {
-          setState(() => _screenState = AppScreenState.recalculateOffer);
-        }
-        return;
-      }
-
-      final targetDateRaw = data['target_date'];
-      if (targetDateRaw != null && targetDateRaw.toString().isNotEmpty) {
-        _targetDate = DateTime.tryParse(targetDateRaw.toString());
-        if (_targetDate != null) {
-          _introAnimationDone = false;
-          _introFinishScheduled = false;
-          _introEffectPlayedRows.clear();
-          _introMainSoundPlayed = false;
-
-          _startLifeCountdown();
-          await _loadEvents();
-
-          if (mounted) {
-            _playResultIntroEffect();
-            setState(() => _screenState = AppScreenState.result);
-          }
-          return;
-        }
-      }
-
-      if (mounted) {
-        setState(() => _screenState = AppScreenState.start);
-      }
-    } catch (e) {
-      debugPrint('Init error: $e');
-      if (mounted) {
-        setState(() => _screenState = AppScreenState.start);
-      }
     }
   }
 
@@ -656,7 +571,8 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
       );
 
       await localNotifications
-          .resolvePlatformSpecificImplementation<IOSFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<
+              DarwinFlutterLocalNotificationsPlugin>()
           ?.requestPermissions(
             alert: true,
             badge: true,
@@ -665,16 +581,133 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     }
   }
 
+  Future<void> _initApp() async {
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      user ??= (await FirebaseAuth.instance.signInAnonymously()).user;
+      if (user == null) throw Exception('Firebase user oluşturulamadı');
+
+      _uid = user.uid;
+      _deviceKey = await _getDeviceKey();
+      final lang = PlatformDispatcher.instance.locale.languageCode;
+
+      // Artık ilk frame çizildikten sonra çağrılıyor, dialog güvenle açılır.
+      await _askNotificationPermissionWithModal();
+
+      String? token;
+      try {
+        token = await FirebaseMessaging.instance.getToken();
+      } catch (_) {
+        token = null;
+      }
+
+      await _checkSurveyConfig();
+
+      final userRef =
+          FirebaseFirestore.instance.collection('users').doc(_deviceKey);
+      final userDoc = await userRef.get();
+
+      if (!userDoc.exists) {
+        await userRef.set({
+          'uid': _uid,
+          'language': lang,
+          'fcm_token': token,
+          'recalc_required': false,
+          'active_event_id': null,
+          'active_event_delta_days': null,
+          'last_open_at': FieldValue.serverTimestamp(),
+          'created_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } else {
+        await userRef.set({
+          'uid': _uid,
+          'language': lang,
+          'fcm_token': token,
+          'last_open_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      }
+
+      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+        if (_deviceKey == null) return;
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(_deviceKey)
+            .set({
+          'fcm_token': newToken,
+          'updated_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        debugPrint('FCM token refreshed: $newToken');
+      });
+
+      await _ensureUserDefaults();
+      final freshDoc = await userRef.get();
+      final data = freshDoc.data() ?? {};
+
+      if (data['recalc_required'] == true &&
+          data['active_event_seen'] != true) {
+        await userRef.set({
+          'active_event_seen': true,
+          'active_event_seen_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        await _loadEvents();
+
+        if (mounted) {
+          setState(() => _screenState = AppScreenState.recalculateOffer);
+        }
+        return;
+      }
+
+      final targetDateRaw = data['target_date'];
+      if (targetDateRaw != null && targetDateRaw.toString().isNotEmpty) {
+        _targetDate = DateTime.tryParse(targetDateRaw.toString());
+        if (_targetDate != null) {
+          _introAnimationDone = false;
+          _introFinishScheduled = false;
+          _introEffectPlayedRows.clear();
+          _introMainSoundPlayed = false;
+
+          _startLifeCountdown();
+          await _loadEvents();
+
+          if (mounted) {
+            _playResultIntroEffect();
+            setState(() => _screenState = AppScreenState.result);
+          }
+          return;
+        }
+      }
+
+      if (mounted) {
+        setState(() => _screenState = AppScreenState.start);
+      }
+    } catch (e) {
+      debugPrint('Init error: $e');
+      if (mounted) {
+        setState(() => _screenState = AppScreenState.start);
+      }
+    }
+  }
+
   Future<void> _ensureUserDefaults() async {
     if (_deviceKey == null) return;
-    final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
+    final userRef =
+        FirebaseFirestore.instance.collection('users').doc(_deviceKey);
     final doc = await userRef.get();
     final data = doc.data() ?? {};
     final Map<String, dynamic> defaults = {};
 
-    if (!data.containsKey('recalc_required')) defaults['recalc_required'] = false;
-    if (!data.containsKey('active_event_id')) defaults['active_event_id'] = null;
-    if (!data.containsKey('active_event_delta_days')) defaults['active_event_delta_days'] = null;
+    if (!data.containsKey('recalc_required')) {
+      defaults['recalc_required'] = false;
+    }
+    if (!data.containsKey('active_event_id')) {
+      defaults['active_event_id'] = null;
+    }
+    if (!data.containsKey('active_event_delta_days')) {
+      defaults['active_event_delta_days'] = null;
+    }
 
     if (defaults.isNotEmpty) {
       defaults['updated_at'] = FieldValue.serverTimestamp();
@@ -685,7 +718,8 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   Future<void> _startCalculation() async {
     if (_deviceKey == null) return;
 
-    final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
+    final userRef =
+        FirebaseFirestore.instance.collection('users').doc(_deviceKey);
     final doc = await userRef.get();
     final data = doc.data() ?? {};
 
@@ -697,7 +731,6 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
       return;
     }
 
-    // 🔥 Firestore bayrak kontrolü (show_survey: 1 ise)
     await _checkSurveyConfig();
 
     if (_showSurveyConfig) {
@@ -713,7 +746,8 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
 
   void _proceedToCalculatingTimer() async {
     if (_deviceKey != null) {
-      final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
+      final userRef =
+          FirebaseFirestore.instance.collection('users').doc(_deviceKey);
       await userRef.set({
         'calculation_started_at': FieldValue.serverTimestamp(),
         'calculation_status': 'started',
@@ -750,21 +784,66 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     });
   }
 
+  // ANKET VERİLERİNİ HESAPLAMAYA DAHİL EDEN ALGORİTMA
   Future<void> _finishCalculation() async {
     if (_deviceKey == null) return;
-    final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
+    final userRef =
+        FirebaseFirestore.instance.collection('users').doc(_deviceKey);
     final userDoc = await userRef.get();
     final data = userDoc.data() ?? {};
 
     if (data['target_date'] != null) {
       _targetDate = DateTime.tryParse(data['target_date'].toString());
     } else {
-      final randomDays = 7 + Random.secure().nextInt((365 * 50) - 7 + 1);
-      _targetDate = DateTime.now().add(Duration(days: randomDays));
+      // Temel Rastgele Gün (10 - 50 Yıl Arasında)
+      int baseDays = 3650 + Random.secure().nextInt((365 * 40));
+
+      // Anket Etkisi Hesaplaması
+      if (_showSurveyConfig) {
+        int surveyModifier = 0;
+
+        // Uyku Etkisi (7-8 Saat İdeal)
+        if (_sleepHours >= 7 && _sleepHours <= 8) {
+          surveyModifier += 365 * 2; // +2 Yıl
+        } else if (_sleepHours < 5) {
+          surveyModifier -= 365 * 3; // -3 Yıl
+        }
+
+        // Zararlı Alışkanlık Etkisi
+        if (_habitsYes) {
+          surveyModifier -= 365 * 5; // -5 Yıl
+        } else {
+          surveyModifier += 365 * 2; // +2 Yıl
+        }
+
+        // Stres Seviyesi Etkisi (1-10)
+        if (_stressLevel > 7) {
+          surveyModifier -= 365 * 4; // High Stress
+        } else if (_stressLevel < 4) {
+          surveyModifier += 365 * 3; // Low Stress
+        }
+
+        // Egzersiz Günü Etkisi (0-7)
+        surveyModifier += (_exerciseDays * 180); // Her gün için +0.5 yıl civarı
+
+        baseDays += surveyModifier;
+      }
+
+      // Minimum 30 gün güvenlik alt sınırı
+      if (baseDays < 30) baseDays = 30;
+
+      _targetDate = DateTime.now().add(Duration(days: baseDays));
+
       await userRef.set({
         'target_date': _targetDate!.toIso8601String(),
-        'target_days': randomDays,
+        'target_days': baseDays,
         'calculation_status': 'completed',
+        'survey_data': {
+          'sleep_hours': _sleepHours,
+          'habits_yes': _habitsYes,
+          'stress_level': _stressLevel,
+          'exercise_days': _exerciseDays,
+        },
         'calculated_at': FieldValue.serverTimestamp(),
         'updated_at': FieldValue.serverTimestamp(),
         'locked': true,
@@ -821,7 +900,8 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
       return;
     }
 
-    final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
+    final userRef =
+        FirebaseFirestore.instance.collection('users').doc(_deviceKey);
 
     DateTime oldTarget = DateTime.now().add(
       Duration(days: 7 + Random.secure().nextInt((365 * 50) - 7 + 1)),
@@ -836,9 +916,9 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
 
       eventId = data['active_event_id']?.toString();
 
-      deltaMinutes =
-          int.tryParse('${data['active_event_delta_minutes'] ?? 0}') ??
-          ((int.tryParse('${data['active_event_delta_days'] ?? 0}') ?? 0) * 1440);
+      deltaMinutes = int.tryParse('${data['active_event_delta_minutes'] ?? 0}') ??
+          ((int.tryParse('${data['active_event_delta_days'] ?? 0}') ?? 0) *
+              1440);
 
       final oldTargetRaw = data['target_date'];
 
@@ -860,7 +940,7 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
         'locked': true,
       }, SetOptions(merge: true));
 
-      if (eventId != null && eventId!.isNotEmpty) {
+      if (eventId != null && eventId.isNotEmpty) {
         await userRef.collection('events').doc(eventId).set({
           'applied': true,
           'old_target_date': oldTarget.toIso8601String(),
@@ -897,10 +977,21 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     if (_deviceKey == null) return;
     final l = AppLocalizations.of(context)!;
     final batch = FirebaseFirestore.instance.batch();
-    final eventsRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey).collection('events');
+    final eventsRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(_deviceKey)
+        .collection('events');
     final items = [
-      {'days_delta': 3, 'title': l.eventPositiveTitle, 'description': l.eventPositiveDescription},
-      {'days_delta': -240, 'title': l.eventNegativeTitle, 'description': l.eventNegativeDescription},
+      {
+        'days_delta': 3,
+        'title': l.eventPositiveTitle,
+        'description': l.eventPositiveDescription
+      },
+      {
+        'days_delta': -240,
+        'title': l.eventNegativeTitle,
+        'description': l.eventNegativeDescription
+      },
     ];
 
     for (final item in items) {
@@ -954,40 +1045,43 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   }
 
   void _loadRewardedAd() {
-    if (_isLoadingRewardedAd) return;
+    if (_isLoadingRewardedAd || _rewardedAdReady) return;
     _isLoadingRewardedAd = true;
-
-    Future.delayed(const Duration(seconds: 10), () {
-      if (!mounted) return;
-      if (!_rewardedAdReady) {
-        _isLoadingRewardedAd = false;
-        debugPrint('Rewarded ad timeout, retry allowed');
-        setState(() {});
-      }
-    });
 
     RewardedAd.load(
       adUnitId: _rewardedAdUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
-          debugPrint('Rewarded ad loaded');
+          debugPrint('Rewarded ad loaded successfully');
           _rewardedAd = ad;
           _rewardedAdReady = true;
           _isLoadingRewardedAd = false;
           if (mounted) setState(() {});
         },
         onAdFailedToLoad: (error) {
-          debugPrint('Rewarded ad failed: ${error.code} / ${error.message}');
+          // NOT: "video hazırlanıyor" yazısı takılı kalıyorsa buradaki
+          // error.code / error.message AdMob konsolundaki asıl sebebi
+          // gösterir (unit ID hatalı, doldurma oranı düşük, ATT izni
+          // reddedilmiş vb.). flutter logs ile izleyin.
+          debugPrint(
+              'Rewarded ad failed to load: ${error.code} / ${error.message}');
           _rewardedAd = null;
           _rewardedAdReady = false;
           _isLoadingRewardedAd = false;
           if (mounted) setState(() {});
+
+          Future.delayed(const Duration(seconds: 5), () {
+            if (mounted && !_rewardedAdReady) {
+              _loadRewardedAd();
+            }
+          });
         },
       ),
     );
   }
 
+  // KATILAŞTIRILMIŞ REKLAM İZLEME MANTIĞI (İZLEMEDEN TAMAMLAMAZ)
   void _showRewardedAd({bool recalculate = false}) async {
     final ad = _rewardedAd;
 
@@ -1042,7 +1136,7 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
         _loadRewardedAd();
 
         _resumeAllSounds();
-        finishNow();
+        // Gösterim hatasında kestirmeden tamamlamıyoruz, timer devam eder.
       },
     );
 
@@ -1071,7 +1165,7 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
       case AppScreenState.start:
         child = _startUI(l);
         break;
-      case AppScreenState.survey: // 🔥 ANKET EKRANI
+      case AppScreenState.survey:
         child = _surveyUI(l);
         break;
       case AppScreenState.calculating:
@@ -1168,7 +1262,6 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     );
   }
 
-  // --- 🔥 HATA VERMEYEN ANKET (SURVEY) UI ---
   Widget _surveyUI(AppLocalizations l) {
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -1459,11 +1552,17 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
               ),
             ),
             const SizedBox(height: 10),
-            Text(l.estimatedTime, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white60)),
+            Text(l.estimatedTime,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white60)),
             const SizedBox(height: 18),
-            _outlineButton(text: _rewardedAdReady ? l.fastCalculateButton : l.loadingAd, onPressed: _showRewardedAd),
+            _outlineButton(
+                text: _rewardedAdReady ? l.fastCalculateButton : l.loadingAd,
+                onPressed: _showRewardedAd),
             const SizedBox(height: 12),
-            Text(l.rewardedAdInfo, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white38, fontSize: 12)),
+            Text(l.rewardedAdInfo,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white38, fontSize: 12)),
           ],
         ),
       ),
@@ -1654,15 +1753,27 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   }
 
   Widget _floatingMenuItems(AppLocalizations l) {
+    // === DÜZELTME #3 (ek önlem) ===
+    // Paylaş menü öğesi sadece "result" ekranında anlamlı, çünkü ekran
+    // görüntüsü almak için gereken RepaintBoundary yalnızca o ekranda
+    // kuruluyor. Diğer ekranlarda gösterilmesi kullanıcıyı "hiçbir şey
+    // olmuyor" hissine sürüklüyordu.
+    final items = <Widget>[
+      _floatingItem(
+          l.menuAbout, Icons.info_outline, () => _showAboutFullScreen(l)),
+      _floatingItem(
+          l.menuEvents, Icons.auto_awesome, () => _showEventsFullScreen(l)),
+      if (_screenState == AppScreenState.result)
+        _floatingItem(
+            l.menuShare, Icons.ios_share, () => _showShareFullScreen(l)),
+      _floatingItem(
+          l.menuLanguage, Icons.language, () => _showLanguageFullScreen(l)),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.end,
       mainAxisSize: MainAxisSize.min,
-      children: [
-        _floatingItem(l.menuAbout, Icons.info_outline, () => _showAboutFullScreen(l)),
-        _floatingItem(l.menuEvents, Icons.auto_awesome, () => _showEventsFullScreen(l)),
-        _floatingItem(l.menuShare, Icons.ios_share, () => _showShareFullScreen(l)),
-        _floatingItem(l.menuLanguage, Icons.language, () => _showLanguageFullScreen(l)),
-      ],
+      children: items,
     );
   }
 
@@ -1736,7 +1847,8 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
                       ),
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close, color: Colors.white, size: 30),
+                        icon: const Icon(Icons.close,
+                            color: Colors.white, size: 30),
                       ),
                     ],
                   ),
@@ -1766,11 +1878,17 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
             ),
           ),
           const SizedBox(height: 22),
-          Text(l.aboutText1, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.55)),
+          Text(l.aboutText1,
+              style: const TextStyle(
+                  color: Colors.white70, fontSize: 14, height: 1.55)),
           const SizedBox(height: 14),
-          Text(l.aboutText2, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.55)),
+          Text(l.aboutText2,
+              style: const TextStyle(
+                  color: Colors.white70, fontSize: 14, height: 1.55)),
           const SizedBox(height: 14),
-          Text(l.aboutText3, style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.55)),
+          Text(l.aboutText3,
+              style: const TextStyle(
+                  color: Colors.white70, fontSize: 14, height: 1.55)),
         ],
       ),
     );
@@ -1783,7 +1901,9 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     _showFullScreenPanel(
       title: l.menuEvents,
       child: _events.isEmpty
-          ? Center(child: Text(l.noEventYet, style: const TextStyle(color: Colors.white70)))
+          ? Center(
+              child: Text(l.noEventYet,
+                  style: const TextStyle(color: Colors.white70)))
           : ListView.separated(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
               itemCount: _events.length,
@@ -1793,6 +1913,7 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     );
   }
 
+  // ÇOKLU DİL DOKUNUŞUYLA "MONTH" LOKALİZASYONU
   String _formatDeltaFromMinutes(int minutes, AppLocalizations l) {
     final negative = minutes < 0;
     int total = minutes.abs();
@@ -1812,12 +1933,13 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     final parts = <String>[];
 
     if (years > 0) parts.add('$years ${l.years.toLowerCase()}');
-    if (months > 0) parts.add('$months month');
+    if (months > 0) parts.add('$months ${l.months.toLowerCase()}');
     if (days > 0) parts.add('$days ${l.days.toLowerCase()}');
     if (hours > 0) parts.add('$hours ${l.hours.toLowerCase()}');
     if (mins > 0) parts.add('$mins ${l.minutes.toLowerCase()}');
 
-    final text = parts.isEmpty ? '0 ${l.minutes.toLowerCase()}' : parts.join(' ');
+    final text =
+        parts.isEmpty ? '0 ${l.minutes.toLowerCase()}' : parts.join(' ');
     return '${negative ? '-' : '+'}$text';
   }
 
@@ -1910,19 +2032,52 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     );
   }
 
+  // === DÜZELTME #2: EKRAN GÖRÜNTÜSÜ PAYLAŞMA ÇALIŞMIYORDU ===
+  // _shareKey'e bağlı RepaintBoundary yalnızca "result" ekranında
+  // kuruluyor. Diğer ekranlardayken bu fonksiyon çağrılırsa
+  // boundary null geliyor ve sessizce hiçbir şey olmuyordu.
+  // Artık: (1) result ekranında olduğumuzu doğruluyoruz,
+  // (2) capture öncesi frame'in tam çizilmesini bekliyoruz,
+  // (3) iPad'de paylaşım penceresinin konumlanabilmesi için
+  // sharePositionOrigin veriyoruz.
   Future<void> _captureAndShareScreenshot() async {
     try {
-      final boundary = _shareKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return;
-      final ui.Image image = await boundary.toImage(pixelRatio: 3);
-      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (_screenState != AppScreenState.result) {
+        debugPrint(
+            'Ekran görüntüsü sadece result ekranında alınabilir, mevcut ekran: $_screenState');
+        return;
+      }
+
+      await WidgetsBinding.instance.endOfFrame;
+
+      final boundary =
+          _shareKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) {
+        debugPrint('Render boundary context bulunamadı');
+        return;
+      }
+
+      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      final ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) return;
+
       final Uint8List bytes = byteData.buffer.asUint8List();
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/gerisayim_counter.png');
       await file.writeAsBytes(bytes);
+
       final l = AppLocalizations.of(context)!;
-      await Share.shareXFiles([XFile(file.path)], text: l.shareDefaultText);
+
+      final RenderBox? box = context.findRenderObject() as RenderBox?;
+      final Rect? sharePositionOrigin =
+          box != null ? (box.localToGlobal(Offset.zero) & box.size) : null;
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: l.shareDefaultText,
+        sharePositionOrigin: sharePositionOrigin,
+      );
     } catch (e) {
       debugPrint('Share screenshot error: $e');
     }
@@ -1988,7 +2143,8 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
 
   Widget _languageTile(String title, Locale locale) {
     return ListTile(
-      title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 20)),
+      title:
+          Text(title, style: const TextStyle(color: Colors.white, fontSize: 20)),
       trailing: const Icon(Icons.chevron_right, color: Colors.white54),
       onTap: () {
         MyApp.setLocale(context, locale);
@@ -2136,7 +2292,7 @@ class _GlitchNumberState extends State<GlitchNumber> {
         dy = (_r.nextDouble() - 0.5) * 1.5;
       });
     });
-  }
+  } 
 
   @override
   void dispose() {

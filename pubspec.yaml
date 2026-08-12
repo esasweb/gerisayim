@@ -1,6 +1,6 @@
 name: gerisayim
 description: "Geri Sayım Uygulaması"
-version: 1.0.9+9
+version: 1.0.10+10
 publish_to: 'none'
 
 environment:
@@ -16,7 +16,7 @@ dependencies:
 
   # FIREBASE
   firebase_core: ^3.6.0
-  firebase_auth: ^5.1.0 
+  firebase_auth: ^5.1.0  
   cloud_firestore: ^5.4.0
   firebase_messaging: ^15.1.0
 
