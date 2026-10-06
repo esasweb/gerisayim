@@ -1,6 +1,6 @@
 name: gerisayim
 description: "Geri Sayım Uygulaması"
-version: 1.0.15+15
+version: 1.0.16+16
 publish_to: 'none'
 
 environment:
