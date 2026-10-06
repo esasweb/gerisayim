@@ -32,7 +32,7 @@ class AppLocalizationsLt extends AppLocalizations {
 
   @override
   String get startSubtitle =>
-      'Numatomą gyvenimo trukmę galite apskaičiuoti tik vieną kartą.';
+      'Apskaičiuotą gyvenimo trukmės matuoklį galite apskaičiuoti tik vieną kartą.';
 
   @override
   String get calculateButton => 'APSKAIČIUOTI';
@@ -45,7 +45,7 @@ class AppLocalizationsLt extends AppLocalizations {
   String get calculatingTitle => 'Skaičiuojant';
 
   @override
-  String get estimatedTime => 'Numatomas skaičiavimo laikas: 12 minučių';
+  String get estimatedTime => 'Tai gali užtrukti ilgiau nei numatyta';
 
   @override
   String get fastCalculateButton =>
@@ -72,6 +72,9 @@ class AppLocalizationsLt extends AppLocalizations {
   String get days => 'DIENA';
 
   @override
+  String get months => 'MĖNESIS';
+
+  @override
   String get hours => 'VALANDA';
 
   @override
@@ -81,13 +84,13 @@ class AppLocalizationsLt extends AppLocalizations {
   String get seconds => 'ANTRA';
 
   @override
-  String get importantEvents => 'Svarbūs pokyčiai';
+  String get importantEvents => 'Svarbūs įvykiai';
 
   @override
   String get importantEvent => 'svarbi plėtra';
 
   @override
-  String get noEvents => 'Didelės plėtros kol kas nėra.';
+  String get noEvents => 'Kol kas reikšmingos plėtros nėra.';
 
   @override
   String get lockedResultWarning =>
@@ -168,7 +171,7 @@ class AppLocalizationsLt extends AppLocalizations {
   String get menuLanguage => 'Keisti kalbą';
 
   @override
-  String get recalculateTitle => 'Svarbūs pokyčiai';
+  String get recalculateTitle => 'Svarbūs įvykiai';
 
   @override
   String get recalculateDesc =>
@@ -181,62 +184,62 @@ class AppLocalizationsLt extends AppLocalizations {
   String get noEventYet => 'Kol kas likimas nepasikeitė.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'RIZIKOS IR IŠLIEKIMO ANALIZĖ';
 
   @override
   String surveyStepText(Object step) {
-    return 'ANALYSIS $step / 4';
+    return 'ANALIZĖ $step / 4';
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'TĘSTI';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'APSKAIČIUOKITE SAVO LIKIMĄ';
 
   @override
-  String get surveyQ1Title => 'SLEEP PATTERN';
+  String get surveyQ1Title => 'MIEGO RAŠTAS';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc => 'Kiek valandų vidutiniškai miegate per dieną?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return '„$hours“ LAIKRODIS';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'ŽALINGI ĮPROČIAI';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      'Ar reguliariai vartojate tabaką, alkoholį ar daug kofeino?';
 
   @override
-  String get surveyQ2OptionYes => 'YES';
+  String get surveyQ2OptionYes => 'TAIP';
 
   @override
-  String get surveyQ2OptionNo => 'NO';
+  String get surveyQ2OptionNo => 'NE';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'STRESAS IR NERIMAS';
 
   @override
-  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+  String get surveyQ3Desc => 'Įvertinkite savo dienos streso lygį (1–10):';
 
   @override
   String surveyQ3Unit(Object level) {
-    return 'LEVEL $level';
+    return 'LYGIS $level';
   }
 
   @override
-  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+  String get surveyQ4Title => 'FIZINIS AKTYVUMAS';
 
   @override
-  String get surveyQ4Desc => 'How many days a week do you exercise?';
+  String get surveyQ4Desc => 'Kiek dienų per savaitę sportuojate?';
 
   @override
   String surveyQ4Unit(Object days) {
-    return '$days DAYS';
+    return '$days DIENOS';
   }
 }

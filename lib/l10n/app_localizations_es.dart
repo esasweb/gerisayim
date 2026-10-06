@@ -9,7 +9,7 @@ class AppLocalizationsEs extends AppLocalizations {
   AppLocalizationsEs([String locale = 'es']) : super(locale);
 
   @override
-  String get appTitle => 'Geri Sayım: Ölüm Sayacı';
+  String get appTitle => 'Cuenta regresiva: contador de muertes';
 
   @override
   String get appTitleShort => 'Contador de muertes';
@@ -45,7 +45,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get calculatingTitle => 'Calculador';
 
   @override
-  String get estimatedTime => 'Tiempo estimado de cálculo: 12 minutos';
+  String get estimatedTime => 'Puede tardar más de lo estimado';
 
   @override
   String get fastCalculateButton => 'Calcula rápidamente viendo un vídeo corto';
@@ -69,6 +69,9 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get days => 'DÍA';
+
+  @override
+  String get months => 'MES';
 
   @override
   String get hours => 'HORA';
@@ -104,7 +107,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get footerWarning =>
-      'Es para fines de entretenimiento. No es una predicción de la salud o la supervivencia reales.';
+      'Es para fines de entretenimiento. No es una predicción de la salud o la supervivencia real.';
 
   @override
   String get ok => 'De acuerdo';
@@ -181,62 +184,62 @@ class AppLocalizationsEs extends AppLocalizations {
   String get noEventYet => 'Aún no hay cambios de destino.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'ANÁLISIS DE RIESGOS Y SUPERVIVENCIA';
 
   @override
   String surveyStepText(Object step) {
-    return 'ANALYSIS $step / 4';
+    return 'ANÁLISIS $step / 4';
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'CONTINUAR';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'CALCULA TU DESTINO';
 
   @override
-  String get surveyQ1Title => 'SLEEP PATTERN';
+  String get surveyQ1Title => 'PATRÓN DE SUEÑO';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc => '¿Cuántas horas duermes al día en promedio?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return 'RELOJ $hours';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'HÁBITOS NOCIVOS';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      '¿Consume habitualmente tabaco, alcohol o cafeína en exceso?';
 
   @override
-  String get surveyQ2OptionYes => 'YES';
+  String get surveyQ2OptionYes => 'SÍ';
 
   @override
   String get surveyQ2OptionNo => 'NO';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'ESTRÉS Y ANSIEDAD';
 
   @override
-  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+  String get surveyQ3Desc => 'Califique su nivel de estrés diario (1 - 10):';
 
   @override
   String surveyQ3Unit(Object level) {
-    return 'LEVEL $level';
+    return 'NIVEL $level';
   }
 
   @override
-  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+  String get surveyQ4Title => 'ACTIVIDAD FÍSICA';
 
   @override
-  String get surveyQ4Desc => 'How many days a week do you exercise?';
+  String get surveyQ4Desc => '¿Cuántos días a la semana haces ejercicio?';
 
   @override
   String surveyQ4Unit(Object days) {
-    return '$days DAYS';
+    return '$days DÍAS';
   }
 }

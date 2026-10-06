@@ -45,7 +45,7 @@ class AppLocalizationsTe extends AppLocalizations {
   String get calculatingTitle => 'లెక్కిస్తోంది';
 
   @override
-  String get estimatedTime => 'అంచనా వేసిన గణన సమయం: 12 నిమిషాలు';
+  String get estimatedTime => 'ఇది అంచనా వేసిన దాని కంటే ఎక్కువ సమయం పట్టవచ్చు';
 
   @override
   String get fastCalculateButton =>
@@ -70,6 +70,9 @@ class AppLocalizationsTe extends AppLocalizations {
 
   @override
   String get days => 'DAY';
+
+  @override
+  String get months => 'నెల';
 
   @override
   String get hours => 'గంట';
@@ -164,7 +167,7 @@ class AppLocalizationsTe extends AppLocalizations {
   String get menuShare => 'షేర్ స్క్రీన్';
 
   @override
-  String get menuLanguage => 'భాషను మార్చండి';
+  String get menuLanguage => 'భాష మార్చండి';
 
   @override
   String get recalculateTitle => 'ముఖ్యమైన అభివృద్ధి';
@@ -180,62 +183,63 @@ class AppLocalizationsTe extends AppLocalizations {
   String get noEventYet => 'విధిలో ఇంకా మార్పు లేదు.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'రిస్క్ మరియు సర్వైవల్ విశ్లేషణ';
 
   @override
   String surveyStepText(Object step) {
-    return 'ANALYSIS $step / 4';
+    return 'విశ్లేషణ $step / 4';
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'కొనసాగించు';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'మీ విధిని లెక్కించండి';
 
   @override
-  String get surveyQ1Title => 'SLEEP PATTERN';
+  String get surveyQ1Title => 'స్లీప్ ప్యాటర్న్';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc => 'మీరు రోజుకు సగటున ఎన్ని గంటలు నిద్రపోతారు?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return '$hours వాచ్';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'హానికరమైన అలవాట్లు';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      'మీరు క్రమం తప్పకుండా పొగాకు, ఆల్కహాల్ లేదా హెవీ కెఫిన్ తీసుకుంటారా?';
 
   @override
-  String get surveyQ2OptionYes => 'YES';
+  String get surveyQ2OptionYes => 'అవును';
 
   @override
-  String get surveyQ2OptionNo => 'NO';
+  String get surveyQ2OptionNo => 'నం';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'ఒత్తిడి మరియు ఆందోళన';
 
   @override
-  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+  String get surveyQ3Desc =>
+      'మీ రోజువారీ ఒత్తిడి స్థాయిని రేట్ చేయండి (1 - 10):';
 
   @override
   String surveyQ3Unit(Object level) {
-    return 'LEVEL $level';
+    return 'స్థాయి $level';
   }
 
   @override
-  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+  String get surveyQ4Title => 'ఫిజికల్ యాక్టివిటీ';
 
   @override
-  String get surveyQ4Desc => 'How many days a week do you exercise?';
+  String get surveyQ4Desc => 'మీరు వారానికి ఎన్ని రోజులు వ్యాయామం చేస్తారు?';
 
   @override
   String surveyQ4Unit(Object days) {
-    return '$days DAYS';
+    return '$days రోజులు';
   }
 }

@@ -18,7 +18,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:audioplayers/audioplayers.dart';
+import 'package:audioplayers/audioplayers.dart' hide Source;
 import 'package:path_provider/path_provider.dart';
 import 'package:torch_light/torch_light.dart';
 import 'package:gerisayim/l10n/app_localizations.dart';
@@ -443,6 +443,53 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     );
   }
 
+  // === YENİ: UYGULAMA YENİDEN AÇILIP DOĞRUDAN SONUÇ EKRANINA GİDERKEN ===
+  // Kullanıcının zaten bir target_date'i varsa (yani daha önce hesaplama
+  // yapılmışsa), sonuç ekranını göstermeden HEMEN ÖNCE geçiş reklamını
+  // gösteriyoruz. Reklam hazır değilse (henüz yüklenmediyse) kullanıcıyı
+  // bekletmeden direkt sonuç ekranına geçiyoruz.
+  void _showInterstitialThenProceed(VoidCallback onDone) {
+    final ad = _interstitialAd;
+
+    if (ad == null || !_interstitialReady) {
+      debugPrint('Interstitial hazır değil, reklamsız devam ediliyor.');
+      onDone();
+      return;
+    }
+
+    _interstitialAd = null;
+    _interstitialReady = false;
+
+    bool done = false;
+    void proceedOnce() {
+      if (done) return;
+      done = true;
+      onDone();
+    }
+
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (ad) async {
+        await _pauseAllSounds();
+        _stopFlashEffect();
+      },
+      onAdDismissedFullScreenContent: (ad) async {
+        ad.dispose();
+        await _resumeAllSounds();
+        _startRandomFlashEffect();
+        _loadInterstitialAd();
+        proceedOnce();
+      },
+      onAdFailedToShowFullScreenContent: (ad, error) async {
+        ad.dispose();
+        await _resumeAllSounds();
+        _loadInterstitialAd();
+        proceedOnce();
+      },
+    );
+
+    ad.show();
+  }
+
   void _listenNotificationClicks() {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       final notification = message.notification;
@@ -478,31 +525,68 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     });
   }
 
-  Future<void> _openRecalculateOffer() async {
-    await _loadEvents();
-    if (!mounted) return;
-    setState(() => _screenState = AppScreenState.recalculateOffer);
-  }
+Future<void> _openRecalculateOffer() async {
+  await _loadEvents();
+  if (!mounted) return;
 
+  // Önce reklam göster.
+  // Reklam kapandıktan sonra "önemli değişiklik" ekranına geç.
+  _showInterstitialThenProceed(() {
+    if (!mounted) return;
+
+    setState(() {
+      _screenState = AppScreenState.recalculateOffer;
+    });
+  });
+}
+
+  // === DÜZELTME: Firestore'dan 'sayim' değeri güvenilir şekilde okunuyor ===
+  // 1) Önce sunucudan (Source.server) zorla okunuyor ki eski/boş cache
+  //    yüzünden yanlış (varsayılan 60) değer kullanılmasın.
+  // 2) Sunucuya ulaşılamazsa cache'e (varsayılan get()) düşülüyor.
+  // 3) 'sayim' hem number hem string olarak Firestore'da tutulmuş olsa
+  //    bile doğru parse ediliyor.
+  // 4) Okunan değer debugPrint ile loglanıyor, "flutter logs" ile kontrol
+  //    edebilirsiniz: "Firestore config -> sayim: X".
   Future<void> _checkSurveyConfig() async {
+    DocumentSnapshot<Map<String, dynamic>>? doc;
+
     try {
-      final doc = await FirebaseFirestore.instance
+      doc = await FirebaseFirestore.instance
           .collection('app_config')
           .doc('settings')
-          .get();
+          .get(GetOptions(source: Source.server));
+    } catch (e) {
+      debugPrint('Config fetch (server) error: $e');
+      try {
+        doc = await FirebaseFirestore.instance
+            .collection('app_config')
+            .doc('settings')
+            .get();
+      } catch (e2) {
+        debugPrint('Config fetch (cache) error: $e2');
+        _showSurveyConfig = false;
+        return;
+      }
+    }
 
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
-        final val = data['show_survey'];
-        _showSurveyConfig = (val == 1 || val == true);
+    if (doc.exists && doc.data() != null) {
+      final data = doc.data()!;
+      final val = data['show_survey'];
+      _showSurveyConfig = (val == 1 || val == true);
 
-        if (data.containsKey('sayim')) {
-          calculationSeconds = int.tryParse('${data['sayim']}') ?? 60;
+      final rawSayim = data['sayim'];
+      if (rawSayim != null) {
+        if (rawSayim is num) {
+          calculationSeconds = rawSayim.toInt();
+        } else {
+          calculationSeconds =
+              int.tryParse(rawSayim.toString()) ?? calculationSeconds;
         }
       }
-    } catch (e) {
-      debugPrint('Config fetch error: $e');
-      _showSurveyConfig = false;
+
+      debugPrint(
+          'Firestore config -> sayim: $calculationSeconds saniye, show_survey: $_showSurveyConfig');
     }
   }
 
@@ -645,37 +729,52 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
       final freshDoc = await userRef.get();
       final data = freshDoc.data() ?? {};
 
-      if (data['recalc_required'] == true &&
-          data['active_event_seen'] != true) {
-        await userRef.set({
-          'active_event_seen': true,
-          'active_event_seen_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+     if (data['recalc_required'] == true &&
+    data['active_event_seen'] != true) {
 
-        await _loadEvents();
+  await userRef.set({
+    'active_event_seen': true,
+    'active_event_seen_at': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
 
-        if (mounted) {
-          setState(() => _screenState = AppScreenState.recalculateOffer);
-        }
-        return;
-      }
+  await _loadEvents();
+
+  if (!mounted) return;
+
+  // Kalan süre ekranını göstermeden önce reklamı aç.
+  _showInterstitialThenProceed(() {
+    if (!mounted) return;
+
+    setState(() {
+      _screenState = AppScreenState.recalculateOffer;
+    });
+  });
+
+  return;
+}
 
       final targetDateRaw = data['target_date'];
       if (targetDateRaw != null && targetDateRaw.toString().isNotEmpty) {
         _targetDate = DateTime.tryParse(targetDateRaw.toString());
         if (_targetDate != null) {
-          _introAnimationDone = false;
-          _introFinishScheduled = false;
-          _introEffectPlayedRows.clear();
-          _introMainSoundPlayed = false;
-
-          _startLifeCountdown();
+          // Sonuç ekranına geçmeden önce gerekli verileri hazırlıyoruz,
+          // ardından (varsa) geçiş reklamını gösterip reklam kapandıktan
+          // sonra sonuç ekranına geçiyoruz.
           await _loadEvents();
 
-          if (mounted) {
-            _playResultIntroEffect();
-            setState(() => _screenState = AppScreenState.result);
-          }
+          _showInterstitialThenProceed(() {
+            _introAnimationDone = false;
+            _introFinishScheduled = false;
+            _introEffectPlayedRows.clear();
+            _introMainSoundPlayed = false;
+
+            _startLifeCountdown();
+
+            if (mounted) {
+              _playResultIntroEffect();
+              setState(() => _screenState = AppScreenState.result);
+            }
+          });
           return;
         }
       }
@@ -848,7 +947,9 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
         'updated_at': FieldValue.serverTimestamp(),
         'locked': true,
       }, SetOptions(merge: true));
-      await _createInitialEvents();
+      // NOT: İlk hesaplamada otomatik olarak 2 "kader" olayı (+3 gün / -240 gün)
+      // eklenmesi kullanıcı isteği üzerine kaldırıldı. Artık olaylar sadece
+      // sunucu tarafından (bildirimle) push edildiğinde oluşacak.
     }
 
     _introAnimationDone = false;

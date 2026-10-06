@@ -45,7 +45,7 @@ class AppLocalizationsTr extends AppLocalizations {
   String get calculatingTitle => 'Hesaplanıyor';
 
   @override
-  String get estimatedTime => 'Tahmini hesaplama süresi: 12 dakika';
+  String get estimatedTime => 'Tahminden Daha Uzun Sürebilir';
 
   @override
   String get fastCalculateButton => 'Kısa video izleyerek hızlı hesapla';
@@ -68,6 +68,9 @@ class AppLocalizationsTr extends AppLocalizations {
 
   @override
   String get days => 'GÜN';
+
+  @override
+  String get months => 'AY';
 
   @override
   String get hours => 'SAAT';

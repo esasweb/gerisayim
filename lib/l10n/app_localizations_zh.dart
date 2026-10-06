@@ -45,7 +45,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get calculatingTitle => 'Hesaplanıyor';
 
   @override
-  String get estimatedTime => 'Tahmini hesaplama süresi: 12 dakika';
+  String get estimatedTime => 'Tahminden Daha Uzun Sürebilir';
 
   @override
   String get fastCalculateButton => 'Kısa video izleyerek hızlı hesapla';
@@ -68,6 +68,9 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get days => 'GÜN';
+
+  @override
+  String get months => 'AY';
 
   @override
   String get hours => 'SAAT';
@@ -178,63 +181,63 @@ class AppLocalizationsZh extends AppLocalizations {
   String get noEventYet => 'Henüz kader değişimi yok.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'RİSK VE YAŞAM ANALİZİ';
 
   @override
   String surveyStepText(Object step) {
-    return 'ANALYSIS $step / 4';
+    return 'ANALİZ $step / 4';
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'DEVAM ET';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'KADERİ HESAPLA';
 
   @override
-  String get surveyQ1Title => 'SLEEP PATTERN';
+  String get surveyQ1Title => 'UYKU DÜZENİ';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc => 'Günde ortalama kaç saat uyuyorsunuz?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return '$hours SAAT';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'ZARARLI ALIŞKANLIKLAR';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      'Düzenli tütün, alkol veya yoğun kafein tüketiyor musunuz?';
 
   @override
-  String get surveyQ2OptionYes => 'YES';
+  String get surveyQ2OptionYes => 'EVET';
 
   @override
-  String get surveyQ2OptionNo => 'NO';
+  String get surveyQ2OptionNo => 'HAYIR';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'STRES VE ANKSİYETE';
 
   @override
-  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+  String get surveyQ3Desc => 'Günlük stres seviyenizi derecelendirin (1 - 10):';
 
   @override
   String surveyQ3Unit(Object level) {
-    return 'LEVEL $level';
+    return 'SEVİYE $level';
   }
 
   @override
-  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+  String get surveyQ4Title => 'FİZİKSEL AKTİVİTE';
 
   @override
-  String get surveyQ4Desc => 'How many days a week do you exercise?';
+  String get surveyQ4Desc => 'Haftada kaç gün egzersiz yapıyorsunuz?';
 
   @override
   String surveyQ4Unit(Object days) {
-    return '$days DAYS';
+    return '$days GÜN';
   }
 }
 
@@ -276,7 +279,7 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
   String get calculatingTitle => '计算';
 
   @override
-  String get estimatedTime => '预计计算时间：12分钟';
+  String get estimatedTime => '可能需要比预计更长的时间';
 
   @override
   String get fastCalculateButton => '通过观看短视频快速计算';
@@ -298,6 +301,9 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get days => '天';
+
+  @override
+  String get months => '月';
 
   @override
   String get hours => '小时';
@@ -397,6 +403,65 @@ class AppLocalizationsZhHans extends AppLocalizationsZh {
 
   @override
   String get noEventYet => '命运还没有改变。';
+
+  @override
+  String get surveyTitle => '风险和生存分析';
+
+  @override
+  String surveyStepText(Object step) {
+    return '分析 $step / 4';
+  }
+
+  @override
+  String get surveyNextButton => '继续';
+
+  @override
+  String get surveyCalculateButton => '计算你的命运';
+
+  @override
+  String get surveyQ1Title => '睡眠模式';
+
+  @override
+  String get surveyQ1Desc => '您平均每天睡眠多少小时？';
+
+  @override
+  String surveyQ1Unit(Object hours) {
+    return '$hours 手表';
+  }
+
+  @override
+  String get surveyQ2Title => '有害的习惯';
+
+  @override
+  String get surveyQ2Desc => '您经常吸烟、饮酒或大量摄入咖啡因吗？';
+
+  @override
+  String get surveyQ2OptionYes => '是的';
+
+  @override
+  String get surveyQ2OptionNo => '不';
+
+  @override
+  String get surveyQ3Title => '压力和焦虑';
+
+  @override
+  String get surveyQ3Desc => '评价您每日的压力水平 (1 - 10)：';
+
+  @override
+  String surveyQ3Unit(Object level) {
+    return '级别X占位符X';
+  }
+
+  @override
+  String get surveyQ4Title => '体力活动';
+
+  @override
+  String get surveyQ4Desc => '您每周锻炼几天？';
+
+  @override
+  String surveyQ4Unit(Object days) {
+    return 'XPLACEHoldERX 天';
+  }
 }
 
 /// The translations for Chinese, using the Han script (`zh_Hant`).
@@ -437,7 +502,7 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
   String get calculatingTitle => '計算';
 
   @override
-  String get estimatedTime => '預計計算時間：12分鐘';
+  String get estimatedTime => '可能需要比預計更長的時間';
 
   @override
   String get fastCalculateButton => '透過觀看短影片快速計算';
@@ -459,6 +524,9 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get days => '天';
+
+  @override
+  String get months => '月';
 
   @override
   String get hours => '小時';
@@ -558,4 +626,63 @@ class AppLocalizationsZhHant extends AppLocalizationsZh {
 
   @override
   String get noEventYet => '命運還沒改變。';
+
+  @override
+  String get surveyTitle => '風險和存活分析';
+
+  @override
+  String surveyStepText(Object step) {
+    return '分析 $step / 4';
+  }
+
+  @override
+  String get surveyNextButton => '繼續';
+
+  @override
+  String get surveyCalculateButton => '計算你的命運';
+
+  @override
+  String get surveyQ1Title => '睡眠模式';
+
+  @override
+  String get surveyQ1Desc => '您平均每天睡眠幾小時？';
+
+  @override
+  String surveyQ1Unit(Object hours) {
+    return '$hours 手錶';
+  }
+
+  @override
+  String get surveyQ2Title => '有害的習慣';
+
+  @override
+  String get surveyQ2Desc => '您經常吸煙、飲酒或攝取大量咖啡因嗎？';
+
+  @override
+  String get surveyQ2OptionYes => '是的';
+
+  @override
+  String get surveyQ2OptionNo => '不';
+
+  @override
+  String get surveyQ3Title => '壓力和焦慮';
+
+  @override
+  String get surveyQ3Desc => '評估您每日的壓力程度 (1 - 10)：';
+
+  @override
+  String surveyQ3Unit(Object level) {
+    return '級別X佔位符X';
+  }
+
+  @override
+  String get surveyQ4Title => '體力活動';
+
+  @override
+  String get surveyQ4Desc => '您每週運動幾天？';
+
+  @override
+  String surveyQ4Unit(Object days) {
+    return 'XPLACEHoldERX 天';
+  }
 }

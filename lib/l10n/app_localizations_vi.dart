@@ -9,7 +9,7 @@ class AppLocalizationsVi extends AppLocalizations {
   AppLocalizationsVi([String locale = 'vi']) : super(locale);
 
   @override
-  String get appTitle => 'Đếm Ngược: Máy Đếm Tử Thần';
+  String get appTitle => 'Đếm ngược: Máy đếm ngược tử thần';
 
   @override
   String get appTitleShort => 'Máy đếm tử thần';
@@ -44,7 +44,7 @@ class AppLocalizationsVi extends AppLocalizations {
   String get calculatingTitle => 'Tính toán';
 
   @override
-  String get estimatedTime => 'Thời gian tính toán dự kiến: 12 phút';
+  String get estimatedTime => 'Có thể mất nhiều thời gian hơn dự kiến';
 
   @override
   String get fastCalculateButton =>
@@ -68,6 +68,9 @@ class AppLocalizationsVi extends AppLocalizations {
 
   @override
   String get days => 'NGÀY';
+
+  @override
+  String get months => 'THÁNG';
 
   @override
   String get hours => 'GIỜ';
@@ -181,62 +184,63 @@ class AppLocalizationsVi extends AppLocalizations {
   String get noEventYet => 'Số phận vẫn chưa thay đổi.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'PHÂN TÍCH RỦI RO VÀ SỐNG SÓT';
 
   @override
   String surveyStepText(Object step) {
-    return 'ANALYSIS $step / 4';
+    return 'PHÂN TÍCH $step / 4';
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'TIẾP TỤC';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'TÍNH TOÁN SỐ PHẬN CỦA BẠN';
 
   @override
-  String get surveyQ1Title => 'SLEEP PATTERN';
+  String get surveyQ1Title => 'MẪU NGỦ';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc => 'Trung bình bạn ngủ bao nhiêu giờ mỗi ngày?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return 'ĐỒNG HỒ $hours';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'Thói quen có hại';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      'Bạn có thường xuyên tiêu thụ thuốc lá, rượu hoặc caffeine nặng không?';
 
   @override
-  String get surveyQ2OptionYes => 'YES';
+  String get surveyQ2OptionYes => 'ĐÚNG';
 
   @override
-  String get surveyQ2OptionNo => 'NO';
+  String get surveyQ2OptionNo => 'KHÔNG';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'Căng thẳng và lo âu';
 
   @override
-  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+  String get surveyQ3Desc =>
+      'Đánh giá mức độ căng thẳng hàng ngày của bạn (1 - 10):';
 
   @override
   String surveyQ3Unit(Object level) {
-    return 'LEVEL $level';
+    return 'CẤP $level';
   }
 
   @override
-  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+  String get surveyQ4Title => 'HOẠT ĐỘNG THỂ CHẤT';
 
   @override
-  String get surveyQ4Desc => 'How many days a week do you exercise?';
+  String get surveyQ4Desc => 'Bạn tập thể dục bao nhiêu ngày một tuần?';
 
   @override
   String surveyQ4Unit(Object days) {
-    return '$days DAYS';
+    return '$days NGÀY';
   }
 }

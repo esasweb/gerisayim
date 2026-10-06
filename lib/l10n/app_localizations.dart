@@ -261,7 +261,7 @@ abstract class AppLocalizations {
   /// No description provided for @estimatedTime.
   ///
   /// In en, this message translates to:
-  /// **'Estimated calculation time: 12 minutes'**
+  /// **'It May Take Longer Than Estimated'**
   String get estimatedTime;
 
   /// No description provided for @fastCalculateButton.
@@ -305,6 +305,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'DAY'**
   String get days;
+
+  /// No description provided for @months.
+  ///
+  /// In en, this message translates to:
+  /// **'MONTH'**
+  String get months;
 
   /// No description provided for @hours.
   ///
@@ -507,7 +513,7 @@ abstract class AppLocalizations {
   /// No description provided for @surveyTitle.
   ///
   /// In en, this message translates to:
-  /// **'RISK & LIFE ANALYSIS'**
+  /// **'RISK AND SURVIVAL ANALYSIS'**
   String get surveyTitle;
 
   /// No description provided for @surveyStepText.
@@ -519,13 +525,13 @@ abstract class AppLocalizations {
   /// No description provided for @surveyNextButton.
   ///
   /// In en, this message translates to:
-  /// **'NEXT'**
+  /// **'CONTINUE'**
   String get surveyNextButton;
 
   /// No description provided for @surveyCalculateButton.
   ///
   /// In en, this message translates to:
-  /// **'CALCULATE DESTINY'**
+  /// **'CALCULATE YOUR FATE'**
   String get surveyCalculateButton;
 
   /// No description provided for @surveyQ1Title.
@@ -537,25 +543,25 @@ abstract class AppLocalizations {
   /// No description provided for @surveyQ1Desc.
   ///
   /// In en, this message translates to:
-  /// **'How many hours do you sleep daily on average?'**
+  /// **'How many hours do you sleep per day on average?'**
   String get surveyQ1Desc;
 
   /// No description provided for @surveyQ1Unit.
   ///
   /// In en, this message translates to:
-  /// **'{hours} HOURS'**
+  /// **'{hours} WATCH'**
   String surveyQ1Unit(Object hours);
 
   /// No description provided for @surveyQ2Title.
   ///
   /// In en, this message translates to:
-  /// **'HABITS & TOXINS'**
+  /// **'HARMFUL HABITS'**
   String get surveyQ2Title;
 
   /// No description provided for @surveyQ2Desc.
   ///
   /// In en, this message translates to:
-  /// **'Do you regularly consume tobacco, alcohol, or heavy caffeine?'**
+  /// **'Do you regularly consume tobacco, alcohol or heavy caffeine?'**
   String get surveyQ2Desc;
 
   /// No description provided for @surveyQ2OptionYes.
@@ -573,7 +579,7 @@ abstract class AppLocalizations {
   /// No description provided for @surveyQ3Title.
   ///
   /// In en, this message translates to:
-  /// **'STRESS & ANXIETY'**
+  /// **'STRESS AND ANXIETY'**
   String get surveyQ3Title;
 
   /// No description provided for @surveyQ3Desc.

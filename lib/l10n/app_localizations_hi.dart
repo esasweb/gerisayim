@@ -45,7 +45,7 @@ class AppLocalizationsHi extends AppLocalizations {
   String get calculatingTitle => 'गिना जा रहा है';
 
   @override
-  String get estimatedTime => 'अनुमानित गणना समय: 12 मिनट';
+  String get estimatedTime => 'इसमें अनुमान से अधिक समय लग सकता है';
 
   @override
   String get fastCalculateButton => 'एक छोटा वीडियो देखकर तुरंत गणना करें';
@@ -67,6 +67,9 @@ class AppLocalizationsHi extends AppLocalizations {
 
   @override
   String get days => 'दिन';
+
+  @override
+  String get months => 'महीना';
 
   @override
   String get hours => 'घंटा';
@@ -177,62 +180,62 @@ class AppLocalizationsHi extends AppLocalizations {
   String get noEventYet => 'भाग्य में अभी कोई बदलाव नहीं.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'जोखिम और उत्तरजीविता विश्लेषण';
 
   @override
   String surveyStepText(Object step) {
-    return 'ANALYSIS $step / 4';
+    return 'विश्लेषण $step / 4';
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'जारी रखना';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'अपने भाग्य की गणना करें';
 
   @override
-  String get surveyQ1Title => 'SLEEP PATTERN';
+  String get surveyQ1Title => 'नींद का पैटर्न';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc => 'आप प्रतिदिन औसतन कितने घंटे सोते हैं?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return '$hours घड़ी';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'हानिकारक आदतें';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      'क्या आप नियमित रूप से तम्बाकू, शराब या भारी कैफीन का सेवन करते हैं?';
 
   @override
-  String get surveyQ2OptionYes => 'YES';
+  String get surveyQ2OptionYes => 'हाँ';
 
   @override
-  String get surveyQ2OptionNo => 'NO';
+  String get surveyQ2OptionNo => 'नहीं';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'तनाव और चिंता';
 
   @override
-  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+  String get surveyQ3Desc => 'अपने दैनिक तनाव स्तर का मूल्यांकन करें (1 - 10):';
 
   @override
   String surveyQ3Unit(Object level) {
-    return 'LEVEL $level';
+    return 'लेवल $level';
   }
 
   @override
-  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+  String get surveyQ4Title => 'शारीरिक गतिविधि';
 
   @override
-  String get surveyQ4Desc => 'How many days a week do you exercise?';
+  String get surveyQ4Desc => 'आप सप्ताह में कितने दिन व्यायाम करते हैं?';
 
   @override
   String surveyQ4Unit(Object days) {
-    return '$days DAYS';
+    return '$days दिन';
   }
 }

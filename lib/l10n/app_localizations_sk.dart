@@ -44,7 +44,7 @@ class AppLocalizationsSk extends AppLocalizations {
   String get calculatingTitle => 'Výpočet';
 
   @override
-  String get estimatedTime => 'Odhadovaný čas výpočtu: 12 minút';
+  String get estimatedTime => 'Môže to trvať dlhšie, než sa odhaduje';
 
   @override
   String get fastCalculateButton =>
@@ -70,6 +70,9 @@ class AppLocalizationsSk extends AppLocalizations {
   String get days => 'DAY';
 
   @override
+  String get months => 'MESIAC';
+
+  @override
   String get hours => 'HODINA';
 
   @override
@@ -89,7 +92,7 @@ class AppLocalizationsSk extends AppLocalizations {
 
   @override
   String get lockedResultWarning =>
-      'Tento výsledok nie je možné prepočítať. Rovnaký záznam sa použije aj vtedy, keď je aplikácia vymazaná.';
+      'Tento výsledok nie je možné prepočítať. Rovnaký záznam sa použije, aj keď je aplikácia vymazaná.';
 
   @override
   String get language => 'Jazyk';
@@ -99,7 +102,7 @@ class AppLocalizationsSk extends AppLocalizations {
 
   @override
   String get disclaimerText =>
-      'Táto aplikácia slúži len na zábavné účely. Neposkytuje pravdivú predpoveď zdravia, dátumu úmrtia, očakávanej dĺžky života alebo budúcnosti.';
+      'Táto aplikácia slúži iba na zábavné účely. Neposkytuje pravdivú predpoveď zdravia, dátumu úmrtia, očakávanej dĺžky života alebo budúcnosti.';
 
   @override
   String get footerWarning =>
@@ -130,7 +133,7 @@ class AppLocalizationsSk extends AppLocalizations {
 
   @override
   String get aboutText1 =>
-      'Táto aplikácia slúži len na zábavné účely. Neposkytuje presné informácie o skutočnej dĺžke života, dátume úmrtia, zdravotnom stave alebo budúcnosti.';
+      'Táto aplikácia slúži iba na zábavné účely. Neposkytuje presné informácie o skutočnej dĺžke života, dátume úmrtia, zdravotnom stave alebo budúcnosti.';
 
   @override
   String get aboutText2 =>
@@ -178,48 +181,48 @@ class AppLocalizationsSk extends AppLocalizations {
   String get noEventYet => 'Zatiaľ žiadna zmena osudu.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'ANALÝZA RIZÍK A PREŽITIA';
 
   @override
   String surveyStepText(Object step) {
-    return 'ANALYSIS $step / 4';
+    return 'ANALÝZA $step / 4';
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'POKRAČOVAŤ';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'VYPOČÍTAJTE SI OSUD';
 
   @override
-  String get surveyQ1Title => 'SLEEP PATTERN';
+  String get surveyQ1Title => 'VZOR SPÁNKU';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc => 'Koľko hodín v priemere denne spíte?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return 'HODINKY $hours';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'ŠKODLIVÉ ZVYKY';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      'Konzumujete pravidelne tabak, alkohol alebo silný kofeín?';
 
   @override
-  String get surveyQ2OptionYes => 'YES';
+  String get surveyQ2OptionYes => 'ÁNO';
 
   @override
-  String get surveyQ2OptionNo => 'NO';
+  String get surveyQ2OptionNo => 'NIE';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'STRES A ÚZKOSŤ';
 
   @override
-  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+  String get surveyQ3Desc => 'Ohodnoťte svoju dennú úroveň stresu (1 - 10):';
 
   @override
   String surveyQ3Unit(Object level) {
@@ -227,10 +230,10 @@ class AppLocalizationsSk extends AppLocalizations {
   }
 
   @override
-  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+  String get surveyQ4Title => 'FYZICKÁ AKTIVITA';
 
   @override
-  String get surveyQ4Desc => 'How many days a week do you exercise?';
+  String get surveyQ4Desc => 'Koľko dní v týždni cvičíte?';
 
   @override
   String surveyQ4Unit(Object days) {

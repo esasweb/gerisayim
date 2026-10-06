@@ -44,7 +44,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get calculatingTitle => 'Računanje';
 
   @override
-  String get estimatedTime => 'Predviđeno vrijeme izračuna: 12 minuta';
+  String get estimatedTime => 'Može potrajati dulje od predviđenog';
 
   @override
   String get fastCalculateButton => 'Brzo izračunajte gledajući kratki video';
@@ -69,6 +69,9 @@ class AppLocalizationsHr extends AppLocalizations {
   String get days => 'DAN';
 
   @override
+  String get months => 'MJESEC';
+
+  @override
   String get hours => 'SAT';
 
   @override
@@ -81,7 +84,7 @@ class AppLocalizationsHr extends AppLocalizations {
   String get importantEvents => 'Važna kretanja';
 
   @override
-  String get importantEvent => 'važan razvoj';
+  String get importantEvent => 'Önemli gelişme';
 
   @override
   String get noEvents => 'Još nema značajnijeg razvoja.';
@@ -179,62 +182,62 @@ class AppLocalizationsHr extends AppLocalizations {
   String get noEventYet => 'Još nema promjene sudbine.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'ANALIZA RIZIKA I OPSTANKA';
 
   @override
   String surveyStepText(Object step) {
-    return 'ANALYSIS $step / 4';
+    return 'ANALIZA $step / 4';
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'NASTAVITI';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'IZRAČUNAJ SVOJU SUDBINU';
 
   @override
-  String get surveyQ1Title => 'SLEEP PATTERN';
+  String get surveyQ1Title => 'OBRAZAC SPAVANJA';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc => 'Koliko sati u prosjeku dnevno spavate?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return '$hours SAT';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'ŠTETNE NAVIKE';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      'Konzumirate li redovito duhan, alkohol ili velike količine kofeina?';
 
   @override
-  String get surveyQ2OptionYes => 'YES';
+  String get surveyQ2OptionYes => 'DA';
 
   @override
-  String get surveyQ2OptionNo => 'NO';
+  String get surveyQ2OptionNo => 'NE';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'STRES I TJESKOBA';
 
   @override
-  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+  String get surveyQ3Desc => 'Ocijenite svoju dnevnu razinu stresa (1 - 10):';
 
   @override
   String surveyQ3Unit(Object level) {
-    return 'LEVEL $level';
+    return 'RAZINA $level';
   }
 
   @override
-  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+  String get surveyQ4Title => 'TJELESNA AKTIVNOST';
 
   @override
-  String get surveyQ4Desc => 'How many days a week do you exercise?';
+  String get surveyQ4Desc => 'Koliko dana u tjednu vježbate?';
 
   @override
   String surveyQ4Unit(Object days) {
-    return '$days DAYS';
+    return '$days DANA';
   }
 }

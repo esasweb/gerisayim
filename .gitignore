@@ -7,3 +7,8 @@ build/
 android/.gradle/
 ios/Pods/
 ios/.symlinks/
+
+node_modules/
+functions/node_modules/
+build/
+.dart_tool/

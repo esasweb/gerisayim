@@ -19,7 +19,7 @@ class AppLocalizationsHu extends AppLocalizations {
 
   @override
   String get notificationPermissionText =>
-      'Szeretne értesítéseket kapni élete fontos eseményeiről, sors- és időbeli változásairól?';
+      'Szeretnél értesítéseket kapni életed fontos eseményeiről, sors- és időbeli változásokról?';
 
   @override
   String get notificationPermissionYes => 'Igen';
@@ -45,7 +45,7 @@ class AppLocalizationsHu extends AppLocalizations {
   String get calculatingTitle => 'Számító';
 
   @override
-  String get estimatedTime => 'Várható számítási idő: 12 perc';
+  String get estimatedTime => 'A becsültnél tovább tarthat';
 
   @override
   String get fastCalculateButton =>
@@ -59,7 +59,7 @@ class AppLocalizationsHu extends AppLocalizations {
       'A videók megtekintése lehetővé teszi a számítási idő kihagyását.';
 
   @override
-  String get adNotReady => 'A videó még nem készült el. Kérjük, próbálja újra.';
+  String get adNotReady => 'A videó még nincs kész. Kérjük, próbálja újra.';
 
   @override
   String get resultTitle => 'FÉRŐDŐ IDŐ';
@@ -69,6 +69,9 @@ class AppLocalizationsHu extends AppLocalizations {
 
   @override
   String get days => 'NAP';
+
+  @override
+  String get months => 'HÓNAP';
 
   @override
   String get hours => 'ÓRA';
@@ -90,7 +93,7 @@ class AppLocalizationsHu extends AppLocalizations {
 
   @override
   String get lockedResultWarning =>
-      'Ez az eredmény nem számítható újra. Ugyanez a rekord akkor is használatos, ha az alkalmazást törölték.';
+      'Ez az eredmény nem számítható újra. Ugyanaz a rekord akkor is használatos, ha az alkalmazást törölték.';
 
   @override
   String get language => 'Nyelv';
@@ -131,7 +134,7 @@ class AppLocalizationsHu extends AppLocalizations {
 
   @override
   String get aboutText1 =>
-      'Ez az alkalmazás csak szórakoztató jellegű. Nem ad pontos információkat a tényleges várható élettartamról, a halál időpontjáról, az egészségi állapotról vagy a jövőről.';
+      'Ez az alkalmazás csak szórakoztató jellegű. Nem ad pontos információt a tényleges várható élettartamról, a halál időpontjáról, az egészségi állapotról vagy a jövőről.';
 
   @override
   String get aboutText2 =>
@@ -179,62 +182,62 @@ class AppLocalizationsHu extends AppLocalizations {
   String get noEventYet => 'Még nincs sorsváltás.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'KOCKÁZAT ÉS TÚLÉLÉS ELEMZÉSE';
 
   @override
   String surveyStepText(Object step) {
-    return 'ANALYSIS $step / 4';
+    return 'ELEMZÉS $step / 4';
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'FOLYTATÁS';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'SZÁMÍTSD KI A SORSODAT';
 
   @override
-  String get surveyQ1Title => 'SLEEP PATTERN';
+  String get surveyQ1Title => 'ALVÁSMINTA';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc => 'Átlagosan hány órát alszol naponta?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return '$hours ÓRA';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'KÁROS SZOKÁSOK';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      'Rendszeresen fogyaszt dohányt, alkoholt vagy erős koffeint?';
 
   @override
-  String get surveyQ2OptionYes => 'YES';
+  String get surveyQ2OptionYes => 'IGEN';
 
   @override
-  String get surveyQ2OptionNo => 'NO';
+  String get surveyQ2OptionNo => 'NEM';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'STRESSZ ÉS szorongás';
 
   @override
-  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+  String get surveyQ3Desc => 'Értékelje napi stresszszintjét (1-10):';
 
   @override
   String surveyQ3Unit(Object level) {
-    return 'LEVEL $level';
+    return '$level SZINT';
   }
 
   @override
-  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+  String get surveyQ4Title => 'FIZIKAI AKTIVITÁS';
 
   @override
-  String get surveyQ4Desc => 'How many days a week do you exercise?';
+  String get surveyQ4Desc => 'Hetente hány napot sportolsz?';
 
   @override
   String surveyQ4Unit(Object days) {
-    return '$days DAYS';
+    return '$days NAPOK';
   }
 }

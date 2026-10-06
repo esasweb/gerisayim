@@ -19,7 +19,7 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get notificationPermissionText =>
-      'Бажаєте отримувати сповіщення про важливі події у вашому житті, зміни в долі та часі?';
+      'Бажаєте отримувати повідомлення про важливі події у вашому житті, зміни в долі та часі?';
 
   @override
   String get notificationPermissionYes => 'так';
@@ -45,7 +45,7 @@ class AppLocalizationsUk extends AppLocalizations {
   String get calculatingTitle => 'Розрахунок';
 
   @override
-  String get estimatedTime => 'Орієнтовний час розрахунку: 12 хвилин';
+  String get estimatedTime => 'Це може зайняти більше часу, ніж очікувалося';
 
   @override
   String get fastCalculateButton =>
@@ -69,6 +69,9 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get days => 'ДЕНЬ';
+
+  @override
+  String get months => 'МІСЯЦЬ';
 
   @override
   String get hours => 'ГОДИНА';
@@ -100,14 +103,14 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get disclaimerText =>
-      'Ця програма призначена лише для розваг. Він не дає правдивого прогнозу здоров’я, дати смерті, очікуваної тривалості життя чи майбутнього.';
+      'Ця програма призначена лише для розважальних цілей. Він не дає правдивого прогнозу здоров’я, дати смерті, очікуваної тривалості життя чи майбутнього.';
 
   @override
   String get footerWarning =>
       'Це для розважальних цілей. Це не прогноз реального здоров\'я чи виживання.';
 
   @override
-  String get ok => 'добре';
+  String get ok => 'Гаразд';
 
   @override
   String get eventPositiveTitle => 'У вашому житті відбулася важлива подія';
@@ -131,11 +134,11 @@ class AppLocalizationsUk extends AppLocalizations {
 
   @override
   String get aboutText1 =>
-      'Ця програма призначена лише для розваг. Він не надає точної інформації про фактичну очікувану тривалість життя, дату смерті, стан здоров\'я чи майбутнє.';
+      'Ця програма призначена лише для розважальних цілей. Він не надає точної інформації про фактичну очікувану тривалість життя, дату смерті, стан здоров\'я чи майбутнє.';
 
   @override
   String get aboutText2 =>
-      'Результати обчислюються вигадано і випадково. Це не медична, психологічна, юридична чи фінансова консультація.';
+      'Результати підраховуються вигадано і випадково. Це не медична, психологічна, юридична чи фінансова консультація.';
 
   @override
   String get aboutText3 =>
@@ -174,68 +177,68 @@ class AppLocalizationsUk extends AppLocalizations {
       'У його долі з\'явилася нова відмітка. Час, що залишився, необхідно перерахувати.';
 
   @override
-  String get recalculateButton => 'ПОРАХУВАЙТЕ ЩЕ РІВ';
+  String get recalculateButton => 'ПОРАХУВАЙТЕ ЗНОВУ';
 
   @override
   String get noEventYet => 'Без змін долі.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'АНАЛІЗ РИЗИКУ ТА ВИЖИВАННЯ';
 
   @override
   String surveyStepText(Object step) {
-    return 'ANALYSIS $step / 4';
+    return 'АНАЛІЗ $step / 4';
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'ПРОДОВЖУЙТЕ';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'РОЗРАХУВАТИ СВОЮ ДОЛЯ';
 
   @override
-  String get surveyQ1Title => 'SLEEP PATTERN';
+  String get surveyQ1Title => 'РЕЖИМ СНУ';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc => 'Скільки годин ви спите в середньому на день?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return 'ГОДИННИК $hours';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'ШКІДЛИВІ ЗВИЧКИ';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      'Ви регулярно вживаєте тютюн, алкоголь або велику кількість кофеїну?';
 
   @override
-  String get surveyQ2OptionYes => 'YES';
+  String get surveyQ2OptionYes => 'ТАК';
 
   @override
-  String get surveyQ2OptionNo => 'NO';
+  String get surveyQ2OptionNo => 'НІ';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'СТРЕС І ТРИВОГА';
 
   @override
-  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+  String get surveyQ3Desc => 'Оцініть свій щоденний рівень стресу (1-10):';
 
   @override
   String surveyQ3Unit(Object level) {
-    return 'LEVEL $level';
+    return 'РІВЕНЬ $level';
   }
 
   @override
-  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+  String get surveyQ4Title => 'ФІЗИЧНА АКТИВНІСТЬ';
 
   @override
-  String get surveyQ4Desc => 'How many days a week do you exercise?';
+  String get surveyQ4Desc => 'Скільки днів на тиждень ти займаєшся спортом?';
 
   @override
   String surveyQ4Unit(Object days) {
-    return '$days DAYS';
+    return '$days ДНІВ';
   }
 }

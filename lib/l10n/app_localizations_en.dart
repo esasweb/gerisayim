@@ -44,7 +44,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get calculatingTitle => 'Calculating';
 
   @override
-  String get estimatedTime => 'Estimated calculation time: 12 minutes';
+  String get estimatedTime => 'It May Take Longer Than Estimated';
 
   @override
   String get fastCalculateButton =>
@@ -68,6 +68,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get days => 'DAY';
+
+  @override
+  String get months => 'MONTH';
 
   @override
   String get hours => 'HOUR';
@@ -179,7 +182,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noEventYet => 'No change of fate yet.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'RISK AND SURVIVAL ANALYSIS';
 
   @override
   String surveyStepText(Object step) {
@@ -187,28 +190,28 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'CONTINUE';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'CALCULATE YOUR FATE';
 
   @override
   String get surveyQ1Title => 'SLEEP PATTERN';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc => 'How many hours do you sleep per day on average?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return '$hours WATCH';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'HARMFUL HABITS';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      'Do you regularly consume tobacco, alcohol or heavy caffeine?';
 
   @override
   String get surveyQ2OptionYes => 'YES';
@@ -217,7 +220,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get surveyQ2OptionNo => 'NO';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'STRESS AND ANXIETY';
 
   @override
   String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';

@@ -22,7 +22,7 @@ class AppLocalizationsIt extends AppLocalizations {
       'Desideri ricevere notifiche su eventi importanti della tua vita, cambiamenti nel destino e nel tempo?';
 
   @override
-  String get notificationPermissionYes => 'SÌ';
+  String get notificationPermissionYes => 'Evet';
 
   @override
   String get notificationPermissionNo => 'NO';
@@ -39,13 +39,13 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get oneTimeWarning =>
-      'Il risultato viene creato una volta e salvato in modo sicuro.';
+      'Sonuç bir kez oluşturulur ve güvenli şekilde kaydedilir.';
 
   @override
   String get calculatingTitle => 'Calcolo';
 
   @override
-  String get estimatedTime => 'Tempo di calcolo stimato: 12 minuti';
+  String get estimatedTime => 'Potrebbe richiedere più tempo del previsto';
 
   @override
   String get fastCalculateButton =>
@@ -69,6 +69,9 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get days => 'GIORNO';
+
+  @override
+  String get months => 'MESE';
 
   @override
   String get hours => 'ORA';
@@ -182,62 +185,63 @@ class AppLocalizationsIt extends AppLocalizations {
   String get noEventYet => 'Nessun cambiamento di destino ancora.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'ANALISI DEL RISCHIO E DELLA SOPRAVVIVENZA';
 
   @override
   String surveyStepText(Object step) {
-    return 'ANALYSIS $step / 4';
+    return 'ANALISI XPLACEholderX / 4';
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'CONTINUARE';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'CALCOLA IL TUO DESTINO';
 
   @override
-  String get surveyQ1Title => 'SLEEP PATTERN';
+  String get surveyQ1Title => 'MODELLO DI SONNO';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc => 'Quante ore dormi in media al giorno?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return 'OROLOGIO XPLACEholderX';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'ABITUDINI DANNOSE';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      'Consumi regolarmente tabacco, alcol o caffeina pesante?';
 
   @override
-  String get surveyQ2OptionYes => 'YES';
+  String get surveyQ2OptionYes => 'SÌ';
 
   @override
   String get surveyQ2OptionNo => 'NO';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'STRESS E ANSIA';
 
   @override
-  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+  String get surveyQ3Desc =>
+      'Valuta il tuo livello di stress quotidiano (1 - 10):';
 
   @override
   String surveyQ3Unit(Object level) {
-    return 'LEVEL $level';
+    return 'SUPPORTO LIVELLO XPLACEX';
   }
 
   @override
-  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+  String get surveyQ4Title => 'ATTIVITÀ FISICA';
 
   @override
-  String get surveyQ4Desc => 'How many days a week do you exercise?';
+  String get surveyQ4Desc => 'Quanti giorni alla settimana ti alleni?';
 
   @override
   String surveyQ4Unit(Object days) {
-    return '$days DAYS';
+    return '$days GIORNI';
   }
 }

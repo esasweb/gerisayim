@@ -44,7 +44,7 @@ class AppLocalizationsCs extends AppLocalizations {
   String get calculatingTitle => 'Počítání';
 
   @override
-  String get estimatedTime => 'Předpokládaná doba výpočtu: 12 minut';
+  String get estimatedTime => 'Může to trvat déle, než se odhaduje';
 
   @override
   String get fastCalculateButton =>
@@ -68,6 +68,9 @@ class AppLocalizationsCs extends AppLocalizations {
 
   @override
   String get days => 'DEN';
+
+  @override
+  String get months => 'MĚSÍC';
 
   @override
   String get hours => 'HODINA';
@@ -126,7 +129,7 @@ class AppLocalizationsCs extends AppLocalizations {
   String get aboutTitle => 'O';
 
   @override
-  String get aboutHeader => 'SYSTEM COUNTDOWN // POSLEDNÍ SOUBOR';
+  String get aboutHeader => 'SYSTÉM ODPOČÍTÁNÍ // POSLEDNÍ SOUBOR';
 
   @override
   String get aboutText1 =>
@@ -178,48 +181,48 @@ class AppLocalizationsCs extends AppLocalizations {
   String get noEventYet => 'Zatím žádná změna osudu.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'ANALÝZA RIZIKA A PŘEŽITÍ';
 
   @override
   String surveyStepText(Object step) {
-    return 'ANALYSIS $step / 4';
+    return 'ANALÝZA $step / 4';
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'POKRAČOVAT';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'SPOČÍTAJTE SI SVŮJ OSUD';
 
   @override
-  String get surveyQ1Title => 'SLEEP PATTERN';
+  String get surveyQ1Title => 'VZOR SPÁNKU';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc => 'Kolik hodin průměrně denně spíte?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return '$hours HODINKY';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'ŠKODLIVÉ NÁVYKY';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      'Konzumujete pravidelně tabák, alkohol nebo silný kofein?';
 
   @override
-  String get surveyQ2OptionYes => 'YES';
+  String get surveyQ2OptionYes => 'ANO';
 
   @override
-  String get surveyQ2OptionNo => 'NO';
+  String get surveyQ2OptionNo => 'ŽÁDNÝ';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'STRES A ÚZKOST';
 
   @override
-  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+  String get surveyQ3Desc => 'Ohodnoťte svou denní úroveň stresu (1–10):';
 
   @override
   String surveyQ3Unit(Object level) {
@@ -227,10 +230,10 @@ class AppLocalizationsCs extends AppLocalizations {
   }
 
   @override
-  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+  String get surveyQ4Title => 'TĚLESNÁ AKTIVITA';
 
   @override
-  String get surveyQ4Desc => 'How many days a week do you exercise?';
+  String get surveyQ4Desc => 'Kolik dní v týdnu cvičíte?';
 
   @override
   String surveyQ4Unit(Object days) {

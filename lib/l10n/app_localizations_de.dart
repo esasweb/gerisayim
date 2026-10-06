@@ -45,7 +45,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get calculatingTitle => 'Berechnen';
 
   @override
-  String get estimatedTime => 'Geschätzte Berechnungszeit: 12 Minuten';
+  String get estimatedTime => 'Es kann länger dauern als erwartet';
 
   @override
   String get fastCalculateButton =>
@@ -72,6 +72,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get days => 'TAG';
 
   @override
+  String get months => 'MONAT';
+
+  @override
   String get hours => 'STUNDE';
 
   @override
@@ -91,7 +94,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get lockedResultWarning =>
-      'Dieses Ergebnis kann nicht neu berechnet werden. Auch wenn die Anwendung gelöscht wird, wird derselbe Datensatz verwendet.';
+      'Dieses Ergebnis kann nicht neu berechnet werden. Derselbe Datensatz wird auch dann verwendet, wenn die Anwendung gelöscht wird.';
 
   @override
   String get language => 'Sprache';
@@ -183,48 +186,49 @@ class AppLocalizationsDe extends AppLocalizations {
   String get noEventYet => 'Noch keine Schicksalsänderung.';
 
   @override
-  String get surveyTitle => 'RISK & LIFE ANALYSIS';
+  String get surveyTitle => 'RISIKO- UND ÜBERLEBENSANALYSE';
 
   @override
   String surveyStepText(Object step) {
-    return 'ANALYSIS $step / 4';
+    return 'ANALYSE $step / 4';
   }
 
   @override
-  String get surveyNextButton => 'NEXT';
+  String get surveyNextButton => 'WEITERMACHEN';
 
   @override
-  String get surveyCalculateButton => 'CALCULATE DESTINY';
+  String get surveyCalculateButton => 'Berechnen Sie Ihr Schicksal';
 
   @override
-  String get surveyQ1Title => 'SLEEP PATTERN';
+  String get surveyQ1Title => 'SCHLAFMUSTER';
 
   @override
-  String get surveyQ1Desc => 'How many hours do you sleep daily on average?';
+  String get surveyQ1Desc =>
+      'Wie viele Stunden schlafen Sie durchschnittlich pro Tag?';
 
   @override
   String surveyQ1Unit(Object hours) {
-    return '$hours HOURS';
+    return '$hours UHR';
   }
 
   @override
-  String get surveyQ2Title => 'HABITS & TOXINS';
+  String get surveyQ2Title => 'Schädliche Gewohnheiten';
 
   @override
   String get surveyQ2Desc =>
-      'Do you regularly consume tobacco, alcohol, or heavy caffeine?';
+      'Konsumieren Sie regelmäßig Tabak, Alkohol oder viel Koffein?';
 
   @override
-  String get surveyQ2OptionYes => 'YES';
+  String get surveyQ2OptionYes => 'JA';
 
   @override
-  String get surveyQ2OptionNo => 'NO';
+  String get surveyQ2OptionNo => 'NEIN';
 
   @override
-  String get surveyQ3Title => 'STRESS & ANXIETY';
+  String get surveyQ3Title => 'Stress und Angst';
 
   @override
-  String get surveyQ3Desc => 'Rate your daily stress level (1 - 10):';
+  String get surveyQ3Desc => 'Bewerten Sie Ihr tägliches Stresslevel (1 - 10):';
 
   @override
   String surveyQ3Unit(Object level) {
@@ -232,13 +236,13 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String get surveyQ4Title => 'PHYSICAL ACTIVITY';
+  String get surveyQ4Title => 'KÖRPERLICHE AKTIVITÄT';
 
   @override
-  String get surveyQ4Desc => 'How many days a week do you exercise?';
+  String get surveyQ4Desc => 'An wie vielen Tagen in der Woche trainieren Sie?';
 
   @override
   String surveyQ4Unit(Object days) {
-    return '$days DAYS';
+    return '$days TAGE';
   }
 }
