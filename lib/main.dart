@@ -678,18 +678,26 @@ Future<void> _openRecalculateOffer() async {
       // Artık ilk frame çizildikten sonra çağrılıyor, dialog güvenle açılır.
       await _askNotificationPermissionWithModal();
 
-    String? token;
+   String? token;
 
 try {
+  final messaging = FirebaseMessaging.instance;
+
+  final settings = await messaging.getNotificationSettings();
+
+  debugPrint('BILDIRIM IZNI: ${settings.authorizationStatus}');
+
   if (Platform.isIOS) {
-    // iOS'ta önce APNs token'ın oluşmasını bekle
     String? apnsToken;
 
-    for (int i = 0; i < 10; i++) {
-      apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+    // APNs bazen birkaç saniye geç geliyor.
+    for (int i = 0; i < 30; i++) {
+      apnsToken = await messaging.getAPNSToken();
+
+      debugPrint('APNS DENEME ${i + 1}: $apnsToken');
 
       if (apnsToken != null && apnsToken.isNotEmpty) {
-        debugPrint('APNS TOKEN: $apnsToken');
+        debugPrint('APNS TOKEN ALINDI: $apnsToken');
         break;
       }
 
@@ -697,11 +705,15 @@ try {
     }
 
     if (apnsToken == null || apnsToken.isEmpty) {
-      debugPrint('UYARI: APNS token henüz oluşmadı.');
+      throw Exception('APNs token 30 saniye içinde alınamadı');
     }
   }
 
-  token = await FirebaseMessaging.instance.getToken();
+  token = await messaging.getToken();
+
+  if (token == null || token.isEmpty) {
+    throw Exception('FCM token alınamadı');
+  }
 
   debugPrint('==============================');
   debugPrint('FCM TOKEN: $token');
@@ -709,8 +721,7 @@ try {
   debugPrint('==============================');
 
 } catch (e) {
-  debugPrint('FCM TOKEN HATASI: $e');
-  token = null;
+  debugPrint('FCM TOKEN HATASI: $e'); 
 }
 
       await _checkSurveyConfig();
