@@ -678,12 +678,40 @@ Future<void> _openRecalculateOffer() async {
       // Artık ilk frame çizildikten sonra çağrılıyor, dialog güvenle açılır.
       await _askNotificationPermissionWithModal();
 
-      String? token;
-      try {
-        token = await FirebaseMessaging.instance.getToken();
-      } catch (_) {
-        token = null;
+    String? token;
+
+try {
+  if (Platform.isIOS) {
+    // iOS'ta önce APNs token'ın oluşmasını bekle
+    String? apnsToken;
+
+    for (int i = 0; i < 10; i++) {
+      apnsToken = await FirebaseMessaging.instance.getAPNSToken();
+
+      if (apnsToken != null && apnsToken.isNotEmpty) {
+        debugPrint('APNS TOKEN: $apnsToken');
+        break;
       }
+
+      await Future.delayed(const Duration(seconds: 1));
+    }
+
+    if (apnsToken == null || apnsToken.isEmpty) {
+      debugPrint('UYARI: APNS token henüz oluşmadı.');
+    }
+  }
+
+  token = await FirebaseMessaging.instance.getToken();
+
+  debugPrint('==============================');
+  debugPrint('FCM TOKEN: $token');
+  debugPrint('DEVICE KEY: $_deviceKey');
+  debugPrint('==============================');
+
+} catch (e) {
+  debugPrint('FCM TOKEN HATASI: $e');
+  token = null;
+}
 
       await _checkSurveyConfig();
 
