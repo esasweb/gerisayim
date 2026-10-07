@@ -593,215 +593,241 @@ Future<void> _openRecalculateOffer() async {
   Future<void> _askNotificationPermissionWithModal() async {
     if (!mounted) return;
 
-    final settings = await FirebaseMessaging.instance.getNotificationSettings();
+    try {
+      final settings =
+          await FirebaseMessaging.instance.getNotificationSettings();
 
-    if (settings.authorizationStatus == AuthorizationStatus.authorized ||
-        settings.authorizationStatus == AuthorizationStatus.provisional) {
-      return;
-    }
+      if (settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional) {
+        return;
+      }
 
-    final l = AppLocalizations.of(context)!;
+      // iOS'ta kullanıcı daha önce kesin olarak reddettiyse sistem penceresi
+      // yeniden açılamaz. Uygulamanın açılışını da bu yüzden bekletmiyoruz.
+      if (settings.authorizationStatus == AuthorizationStatus.denied) {
+        return;
+      }
 
-    final bool? accepted = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.black,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: const BorderSide(color: Colors.white24),
-          ),
-          title: Text(
-            l.notificationPermissionTitle,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
+      final l = AppLocalizations.of(context)!;
+      final bool? accepted = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          return AlertDialog(
+            backgroundColor: Colors.black,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+              side: const BorderSide(color: Colors.white24),
             ),
-          ),
-          content: Text(
-            l.notificationPermissionText,
-            style: const TextStyle(
-              color: Colors.white70,
-              height: 1.45,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(
-                l.notificationPermissionNo,
-                style: const TextStyle(color: Colors.white54),
+            title: Text(
+              l.notificationPermissionTitle,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w900,
               ),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
-              ),
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(l.notificationPermissionYes),
+            content: Text(
+              l.notificationPermissionText,
+              style: const TextStyle(color: Colors.white70, height: 1.45),
             ),
-          ],
-        );
-      },
-    );
-
-    if (accepted == true) {
-      await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: Text(
+                  l.notificationPermissionNo,
+                  style: const TextStyle(color: Colors.white54),
+                ),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.black,
+                ),
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: Text(l.notificationPermissionYes),
+              ),
+            ],
+          );
+        },
       );
 
-      await localNotifications
-          .resolvePlatformSpecificImplementation<
-              IOSFlutterLocalNotificationsPlugin>()
-          ?.requestPermissions(
-            alert: true,
-            badge: true,
-            sound: true,
-          );
+      if (accepted == true) {
+        await FirebaseMessaging.instance.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+          provisional: false,
+        );
+      }
+    } catch (e) {
+      debugPrint('Notification permission error: $e');
+    }
+  }
+
+  Future<String?> _getFcmTokenSafely() async {
+    final messaging = FirebaseMessaging.instance;
+
+    try {
+      if (Platform.isIOS) {
+        // APNs kaydı bazen ilk açılışta birkaç saniye gecikir. Sonsuza kadar
+        // beklemek yerine kısa süre dener, hazır değilse uygulamayı açarız.
+        for (int i = 0; i < 8; i++) {
+          final apns = await messaging
+              .getAPNSToken()
+              .timeout(const Duration(seconds: 2), onTimeout: () => null);
+          if (apns != null && apns.isNotEmpty) break;
+          await Future.delayed(const Duration(milliseconds: 500));
+        }
+      }
+
+      final token = await messaging
+          .getToken()
+          .timeout(const Duration(seconds: 8), onTimeout: () => null);
+      debugPrint('FCM TOKEN: $token');
+      return token;
+    } catch (e) {
+      debugPrint('FCM TOKEN HATASI: $e');
+      return null;
+    }
+  }
+
+  Future<void> _saveFcmTokenWhenAvailable() async {
+    if (_deviceKey == null) return;
+    final token = await _getFcmTokenSafely();
+    if (token == null || token.isEmpty || _deviceKey == null) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_deviceKey)
+          .set({
+        'fcm_token': token,
+        'updated_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (e) {
+      debugPrint('FCM token save error: $e');
     }
   }
 
   Future<void> _initApp() async {
     try {
       User? user = FirebaseAuth.instance.currentUser;
-      user ??= (await FirebaseAuth.instance.signInAnonymously()).user;
+      user ??= (await FirebaseAuth.instance
+              .signInAnonymously()
+              .timeout(const Duration(seconds: 12)))
+          .user;
       if (user == null) throw Exception('Firebase user oluşturulamadı');
 
       _uid = user.uid;
-      _deviceKey = await _getDeviceKey();
+      _deviceKey = await _getDeviceKey().timeout(const Duration(seconds: 5));
       final lang = PlatformDispatcher.instance.locale.languageCode;
 
-      // Artık ilk frame çizildikten sonra çağrılıyor, dialog güvenle açılır.
-      await _askNotificationPermissionWithModal();
+      // Bildirim izni/token işlemleri uygulamanın açılışını BLOKE ETMEZ.
+      unawaited(_askNotificationPermissionWithModal().then((_) async {
+        await _saveFcmTokenWhenAvailable();
+      }));
 
-String? token;
-
-try {
-  final messaging = FirebaseMessaging.instance;
-
-  if (Platform.isIOS) {
-    final apnsToken = await messaging.getAPNSToken();
-    debugPrint('APNS TOKEN: $apnsToken');
-
-    // APNs henüz hazır değilse açılışı BEKLETME.
-    if (apnsToken != null && apnsToken.isNotEmpty) {
-      token = await messaging.getToken();
-    }
-  } else {
-    token = await messaging.getToken();
-  }
-
-  debugPrint('FCM TOKEN: $token');
-} catch (e) {
-  debugPrint('FCM TOKEN HATASI: $e');
-}
-
-      await _checkSurveyConfig();
+      try {
+        await _checkSurveyConfig().timeout(const Duration(seconds: 8));
+      } catch (e) {
+        debugPrint('Survey config init error: $e');
+      }
 
       final userRef =
           FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-      final userDoc = await userRef.get();
 
-      if (!userDoc.exists) {
+      DocumentSnapshot<Map<String, dynamic>>? userDoc;
+      try {
+        userDoc = await userRef.get().timeout(const Duration(seconds: 10));
+      } catch (e) {
+        debugPrint('User read error: $e');
+      }
+
+      if (userDoc == null || !userDoc.exists) {
         await userRef.set({
           'uid': _uid,
           'language': lang,
-          'fcm_token': token,
           'recalc_required': false,
           'active_event_id': null,
+          'active_event_delta_minutes': null,
           'active_event_delta_days': null,
+          'active_event_seen': false,
           'last_open_at': FieldValue.serverTimestamp(),
           'created_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        }, SetOptions(merge: true)).timeout(const Duration(seconds: 10));
       } else {
         await userRef.set({
           'uid': _uid,
           'language': lang,
-          'fcm_token': token,
           'last_open_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
+        }, SetOptions(merge: true)).timeout(const Duration(seconds: 10));
       }
 
+      // Token yenilenince Firestore'u otomatik güncelle.
       FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
-        if (_deviceKey == null) return;
-
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(_deviceKey)
-            .set({
-          'fcm_token': newToken,
-          'updated_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        debugPrint('FCM token refreshed: $newToken');
+        if (_deviceKey == null || newToken.isEmpty) return;
+        try {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(_deviceKey)
+              .set({
+            'fcm_token': newToken,
+            'updated_at': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+          debugPrint('FCM token refreshed: $newToken');
+        } catch (e) {
+          debugPrint('FCM refresh save error: $e');
+        }
       });
 
-      await _ensureUserDefaults();
-      final freshDoc = await userRef.get();
-      final data = freshDoc.data() ?? {};
+      await _ensureUserDefaults().timeout(const Duration(seconds: 10));
+      final freshDoc =
+          await userRef.get().timeout(const Duration(seconds: 10));
+      final data = freshDoc.data() ?? <String, dynamic>{};
 
-     if (data['recalc_required'] == true &&
-    data['active_event_seen'] != true) {
+      if (data['recalc_required'] == true &&
+          data['active_event_seen'] != true) {
+        await userRef.set({
+          'active_event_seen': true,
+          'active_event_seen_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
 
-  await userRef.set({
-    'active_event_seen': true,
-    'active_event_seen_at': FieldValue.serverTimestamp(),
-  }, SetOptions(merge: true));
+        await _loadEvents().timeout(const Duration(seconds: 10));
+        if (!mounted) return;
 
-  await _loadEvents();
-
-  if (!mounted) return;
-
-  // Kalan süre ekranını göstermeden önce reklamı aç.
-  _showInterstitialThenProceed(() {
-    if (!mounted) return;
-
-    setState(() {
-      _screenState = AppScreenState.recalculateOffer;
-    });
-  });
-
-  return;
-}
+        _showInterstitialThenProceed(() {
+          if (!mounted) return;
+          setState(() => _screenState = AppScreenState.recalculateOffer);
+        });
+        return;
+      }
 
       final targetDateRaw = data['target_date'];
       if (targetDateRaw != null && targetDateRaw.toString().isNotEmpty) {
         _targetDate = DateTime.tryParse(targetDateRaw.toString());
         if (_targetDate != null) {
-          // Sonuç ekranına geçmeden önce gerekli verileri hazırlıyoruz,
-          // ardından (varsa) geçiş reklamını gösterip reklam kapandıktan
-          // sonra sonuç ekranına geçiyoruz.
-          await _loadEvents();
+          await _loadEvents().timeout(const Duration(seconds: 10));
+          if (!mounted) return;
 
           _showInterstitialThenProceed(() {
+            if (!mounted) return;
             _introAnimationDone = false;
             _introFinishScheduled = false;
             _introEffectPlayedRows.clear();
             _introMainSoundPlayed = false;
-
             _startLifeCountdown();
-
-            if (mounted) {
-              _playResultIntroEffect();
-              setState(() => _screenState = AppScreenState.result);
-            }
+            _playResultIntroEffect();
+            setState(() => _screenState = AppScreenState.result);
           });
           return;
         }
       }
 
-      if (mounted) {
-        setState(() => _screenState = AppScreenState.start);
-      }
-    } catch (e) {
+      if (mounted) setState(() => _screenState = AppScreenState.start);
+    } catch (e, st) {
       debugPrint('Init error: $e');
-      if (mounted) {
-        setState(() => _screenState = AppScreenState.start);
-      }
+      debugPrint('$st');
+      if (mounted) setState(() => _screenState = AppScreenState.start);
     }
   }
 
@@ -819,8 +845,14 @@ try {
     if (!data.containsKey('active_event_id')) {
       defaults['active_event_id'] = null;
     }
+    if (!data.containsKey('active_event_delta_minutes')) {
+      defaults['active_event_delta_minutes'] = null;
+    }
     if (!data.containsKey('active_event_delta_days')) {
       defaults['active_event_delta_days'] = null;
+    }
+    if (!data.containsKey('active_event_seen')) {
+      defaults['active_event_seen'] = false;
     }
 
     if (defaults.isNotEmpty) {
