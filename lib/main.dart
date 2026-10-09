@@ -492,11 +492,11 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
 
     bool done = false;
     // iOS SDK callback göndermese bile kullanıcı splash ekranında kalmasın.
-    late final Timer watchdog;
+    Timer? watchdog;
     void proceedOnce() {
       if (done) return;
       done = true;
-      watchdog.cancel();
+      watchdog?.cancel();
       onDone();
     }
 
@@ -520,6 +520,8 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
       },
     );
 
+    // Reklam SDK callback vermezse en geç 8 saniye sonra devam et.
+    watchdog = Timer(const Duration(seconds: 8), proceedOnce);
     try {
       ad.show();
     } catch (e) {
