@@ -47,6 +47,7 @@ void main() async {
   );
   AudioPlayer.global.setAudioContext(audioContext);
 
+  try {
   await Firebase.initializeApp(
     options: FirebaseOptions(
       apiKey: "AIzaSyAaSLSjCSuWMSxqjVIVl6UBMmIy-6enk0A",
@@ -58,9 +59,12 @@ void main() async {
       storageBucket: "gerisayim-649a3.firebasestorage.app",
       iosBundleId: Platform.isIOS ? "com.gerisayim.app" : null,
     ),
-  );
-
+  ).timeout(const Duration(seconds: 15));
   FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
+  } catch (e, st) {
+    debugPrint('BOOT Firebase error: $e\n$st');
+  }
+
 
   const androidInit = AndroidInitializationSettings('@mipmap/launcher_icon');
 
@@ -75,7 +79,12 @@ void main() async {
     iOS: iosInit,
   );
 
-  await localNotifications.initialize(initSettings);
+  try {
+    await localNotifications.initialize(initSettings)
+        .timeout(const Duration(seconds: 8));
+  } catch (e) {
+    debugPrint('BOOT notifications error: $e');
+  }
 
   const androidChannel = AndroidNotificationChannel(
     'important_events',
@@ -84,12 +93,24 @@ void main() async {
     importance: Importance.high,
   );
 
-  await localNotifications
-      .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>()
-      ?.createNotificationChannel(androidChannel);
+  if (Platform.isAndroid) {
+    try {
+      await localNotifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(androidChannel)
+          .timeout(const Duration(seconds: 5));
+    } catch (e) {
+      debugPrint('BOOT Android channel error: $e');
+    }
+  }
 
-  await MobileAds.instance.initialize();
+  // Reklam SDK'sının yanıtı ilk ekranın açılmasını engellemesin.
+  unawaited(MobileAds.instance.initialize().then((_) {
+    debugPrint('BOOT MobileAds ready');
+  }).catchError((Object e) {
+    debugPrint('BOOT MobileAds error: $e');
+  }));
 
   runApp(const MyApp());
 }
@@ -129,7 +150,9 @@ class _MyAppState extends State<MyApp> {
   @override
   void initState() {
     super.initState();
-    _loadLocale();
+    _loadLocale().catchError((Object e) {
+      debugPrint('Locale loading error: $e');
+    });
   }
 
   @override
@@ -250,16 +273,23 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     // açılmayabiliyor ve _initApp() içindeki try/catch bu hatayı yutuyordu.
     // addPostFrameCallback ile ilk frame çizildikten sonra çalıştırıyoruz.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initApp();
+      // Uzak servislerin takılması splash ekranını sonsuza dek kilitlemesin.
+      unawaited(_initApp().timeout(const Duration(seconds: 35), onTimeout: () {
+        debugPrint('BOOT TIMEOUT: opening start screen');
+        if (mounted && _screenState == AppScreenState.initializing) {
+          setState(() => _screenState = AppScreenState.start);
+        }
+      }));
     });
 
-    _loadRewardedAd();
+    // Reklam başlatma hatası uygulama açılışını etkilemesin.
+    try { _loadRewardedAd(); } catch (e) { debugPrint('Rewarded init: $e'); }
     Future.delayed(const Duration(seconds: 2), () {
       if (mounted) _loadRewardedAd();
     });
 
-    _loadInterstitialAd();
-    _listenNotificationClicks();
+    try { _loadInterstitialAd(); } catch (e) { debugPrint('Interstitial init: $e'); }
+    try { _listenNotificationClicks(); } catch (e) { debugPrint('Messaging listeners: $e'); }
   }
 
   @override
@@ -461,9 +491,12 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     _interstitialReady = false;
 
     bool done = false;
+    // iOS SDK callback göndermese bile kullanıcı splash ekranında kalmasın.
+    late final Timer watchdog;
     void proceedOnce() {
       if (done) return;
       done = true;
+      watchdog.cancel();
       onDone();
     }
 
@@ -487,7 +520,12 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
       },
     );
 
-    ad.show();
+    try {
+      ad.show();
+    } catch (e) {
+      debugPrint('Interstitial show error: $e');
+      proceedOnce();
+    }
   }
 
   void _listenNotificationClicks() {
@@ -593,7 +631,8 @@ Future<void> _openRecalculateOffer() async {
   Future<void> _askNotificationPermissionWithModal() async {
     if (!mounted) return;
 
-    final settings = await FirebaseMessaging.instance.getNotificationSettings();
+    final settings = await FirebaseMessaging.instance.getNotificationSettings()
+        .timeout(const Duration(seconds: 5));
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional) {
@@ -676,7 +715,10 @@ Future<void> _openRecalculateOffer() async {
       final lang = PlatformDispatcher.instance.locale.languageCode;
 
       // Artık ilk frame çizildikten sonra çağrılıyor, dialog güvenle açılır.
-      await _askNotificationPermissionWithModal();
+       // İzin diyaloğu kullanıcıdan cevap bekleyebilir; açılışı bloke etme.
+       unawaited(_askNotificationPermissionWithModal().catchError((Object e) {
+         debugPrint('Notification permission error: $e');
+       }));
 
    String? token;
 
@@ -724,11 +766,13 @@ try {
   debugPrint('FCM TOKEN HATASI: $e'); 
 }
 
-      await _checkSurveyConfig();
+       await _checkSurveyConfig().timeout(const Duration(seconds: 8), onTimeout: () {
+         debugPrint('Survey config timeout, defaults kept');
+       });
 
       final userRef =
           FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-      final userDoc = await userRef.get();
+       final userDoc = await userRef.get().timeout(const Duration(seconds: 8));
 
       if (!userDoc.exists) {
         await userRef.set({
@@ -764,8 +808,8 @@ try {
         debugPrint('FCM token refreshed: $newToken');
       });
 
-      await _ensureUserDefaults();
-      final freshDoc = await userRef.get();
+       await _ensureUserDefaults().timeout(const Duration(seconds: 8));
+       final freshDoc = await userRef.get().timeout(const Duration(seconds: 8));
       final data = freshDoc.data() ?? {};
 
      if (data['recalc_required'] == true &&
@@ -799,9 +843,13 @@ try {
           // Sonuç ekranına geçmeden önce gerekli verileri hazırlıyoruz,
           // ardından (varsa) geçiş reklamını gösterip reklam kapandıktan
           // sonra sonuç ekranına geçiyoruz.
-          await _loadEvents();
+           try {
+             await _loadEvents().timeout(const Duration(seconds: 6));
+           } catch (e) {
+             debugPrint('Initial events load error: $e');
+           }
 
-          _showInterstitialThenProceed(() {
+           _showInterstitialThenProceed(() {
             _introAnimationDone = false;
             _introFinishScheduled = false;
             _introEffectPlayedRows.clear();
