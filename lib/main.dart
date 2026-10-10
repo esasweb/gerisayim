@@ -1287,6 +1287,10 @@ try {
     bool done = false;
     bool rewardEarned = false;
 
+    // Reklam açıldığında normal hesaplama sayacını durdur.
+_calculationTimer?.cancel();
+_calculationTimer = null;
+
     void finishNow() {
       if (done) return;
       done = true;
@@ -1313,8 +1317,14 @@ try {
         _loadRewardedAd();
 
         if (rewardEarned) {
-          finishNow();
-        }
+  finishNow();
+} else if (!done && mounted) {
+  if (recalculate) {
+    _startRecalculation();
+  } else {
+    _proceedToCalculatingTimer();
+  }
+}
         _startRandomFlashEffect();
         _resumeAllSounds();
       },
@@ -1326,7 +1336,14 @@ try {
         _loadRewardedAd();
 
         _resumeAllSounds();
-        // Gösterim hatasında kestirmeden tamamlamıyoruz, timer devam eder.
+
+if (!done && mounted) {
+  if (recalculate) {
+    _startRecalculation();
+  } else {
+    _proceedToCalculatingTimer();
+  }
+}
       },
     );
 
