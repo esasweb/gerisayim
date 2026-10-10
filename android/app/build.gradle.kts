@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.gerisayim.app"
+    namespace = "com.gerisayiman.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -22,7 +22,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.gerisayim.app"
+        applicationId = "com.gerisayiman.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

@@ -52,8 +52,8 @@ void main() async {
     options: FirebaseOptions(
       apiKey: "AIzaSyAaSLSjCSuWMSxqjVIVl6UBMmIy-6enk0A",
       appId: Platform.isIOS
-          ? "1:496877377379:ios:246bd87cc4e92555dc6556"
-          : "1:496877377379:android:501eec62794d4145dc6556",
+    ? "1:496877377379:ios:246bd87cc4e92555dc6556"
+    : "1:496877377379:android:01024f07d5a8f205dc6556",
       messagingSenderId: "496877377379",
       projectId: "gerisayim-649a3",
       storageBucket: "gerisayim-649a3.firebasestorage.app",
