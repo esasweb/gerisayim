@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -36,12 +38,12 @@ void main() async {
   final AudioContext audioContext = AudioContext(
     iOS: AudioContextIOS(
       category: AVAudioSessionCategory.playback,
-      options: const {
+      options: {
         AVAudioSessionOptions.mixWithOthers,
         AVAudioSessionOptions.defaultToSpeaker,
       },
     ),
-    android: const AudioContextAndroid(),
+    android: AudioContextAndroid(),
   );
   AudioPlayer.global.setAudioContext(audioContext);
 
@@ -197,7 +199,7 @@ class DeathCalculatorPage extends StatefulWidget {
 
 class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     with SingleTickerProviderStateMixin {
-  int calculationSeconds = 60; // Firestore'dan dinamik çekilecek (app_config/settings.sayim)
+  int calculationSeconds = 180; // Firestore app_config/settings.sayim
 
   final GlobalKey _shareKey = GlobalKey();
   final AudioPlayer _bgPlayer = AudioPlayer();
@@ -208,7 +210,7 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   String? _uid;
   DateTime? _targetDate;
   Duration _remainingLife = Duration.zero;
-  int _calculationLeft = 60;
+  int _calculationLeft = 180;
 
   Timer? _lifeTimer;
   Timer? _calculationTimer;
@@ -217,21 +219,14 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   InterstitialAd? _interstitialAd;
   bool _interstitialReady = false;
   bool _introAnimationDone = false;
+  bool _introFinishScheduled = false;
   bool _menuOpen = false;
-  bool _initializingFinished = false;
+  bool _finishingCalculation = false;
+  bool _initialRouteResolved = false;
   bool _pendingNotificationOpen = false;
-  bool _openingOffer = false;
-  bool _startInProgress = false;
-  bool _timerSetupInProgress = false;
-  bool _calculationFinishing = false;
-  bool _recalculationFinishing = false;
-  bool _recalculationStarting = false;
-  bool _rewardedShowing = false;
-  bool _interstitialShowing = false;
-  bool _configLoaded = false;
-  StreamSubscription<RemoteMessage>? _messageSub;
-  StreamSubscription<RemoteMessage>? _openedSub;
-  StreamSubscription<String>? _tokenSub;
+  bool _notificationOfferOpening = false;
+  bool _interstitialLoading = false;
+  bool _adFlowActive = false;
 
   RewardedAd? _rewardedAd;
   bool _rewardedAdReady = false;
@@ -240,6 +235,7 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   final Set<int> _introEffectPlayedRows = {};
   bool _introMainSoundPlayed = false;
   List<Map<String, dynamic>> _events = [];
+  DateTime? _introStartTime;
 
   // --- ANKET DEĞİŞKENLERİ ---
   bool _showSurveyConfig = false;
@@ -304,9 +300,6 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
 
   @override
   void dispose() {
-    _messageSub?.cancel();
-    _openedSub?.cancel();
-    _tokenSub?.cancel();
     _startPlayer.dispose();
     _lifeTimer?.cancel();
     _calculationTimer?.cancel();
@@ -324,13 +317,23 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     _turnFlashOff();
   }
 
+  Future<void> _playStartSound() async {
+    try {
+      await _startPlayer.stop();
+      await _startPlayer.setReleaseMode(ReleaseMode.stop);
+      await _startPlayer.setVolume(1.0);
+      await _startPlayer.play(AssetSource('icon/start.mp3'));
+    } catch (e) {
+      debugPrint('Start sound error: $e');
+    }
+  }
 
   Future<String> _getDeviceKey() async {
     final deviceInfo = DeviceInfoPlugin();
 
     if (Platform.isAndroid) {
       final info = await deviceInfo.androidInfo;
-      return 'android_${info.id}';
+      return 'android_${info.id}'; // Existing Firestore keys preserved; migration required before changing
     }
 
     if (Platform.isIOS) {
@@ -345,6 +348,7 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     if (_introMainSoundPlayed) return;
 
     _introMainSoundPlayed = true;
+    _introStartTime = DateTime.now();
 
     try {
       await _startPlayer.setPlayerMode(PlayerMode.mediaPlayer);
@@ -433,11 +437,14 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   }
 
   void _loadInterstitialAd() {
+    if (_interstitialLoading || _interstitialReady || !mounted) return;
+    _interstitialLoading = true;
     InterstitialAd.load(
       adUnitId: _interstitialAdUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
+          _interstitialLoading = false;
           if (!mounted) { ad.dispose(); return; }
           _interstitialAd = ad;
           _interstitialReady = true;
@@ -471,6 +478,8 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
           debugPrint(
               'Interstitial ad failed to load: ${error.code} / ${error.message}');
           _interstitialReady = false;
+          _interstitialLoading = false;
+          Future.delayed(const Duration(seconds: 10), () { if (mounted) _loadInterstitialAd(); });
         },
       ),
     );
@@ -485,10 +494,6 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
 void _showInterstitialThenProceed(VoidCallback onDone) {
   final ad = _interstitialAd;
 
-  if (_interstitialShowing) {
-    debugPrint('Interstitial already displaying; ignoring duplicate route.');
-    return;
-  }
   if (ad == null || !_interstitialReady) {
     debugPrint('Interstitial hazır değil, reklamsız devam.');
     if (mounted) onDone();
@@ -497,7 +502,6 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
 
   _interstitialAd = null;
   _interstitialReady = false;
-  _interstitialShowing = true;
 
   bool done = false;
   bool adOpened = false;
@@ -515,7 +519,6 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
 
   void cleanupAd() {
     openingWatchdog?.cancel();
-    _interstitialShowing = false;
     ad.dispose();
 
     if (!mounted) return;
@@ -573,86 +576,98 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
   }
 }
 
+
   void _listenNotificationClicks() {
-    _messageSub = FirebaseMessaging.onMessage.listen((message) async {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
       final notification = message.notification;
-      if (notification == null) return;
-      try {
+
+      if (notification != null) {
         await localNotifications.show(
-          notification.hashCode, notification.title, notification.body,
-          const NotificationDetails(android: AndroidNotificationDetails(
-            'important_events', 'Important Events',
-            channelDescription: 'Important event notifications',
-            importance: Importance.high, priority: Priority.high,
-          )),
-          payload: message.data['type']?.toString(),
+          notification.hashCode,
+          notification.title,
+          notification.body,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'important_events',
+              'Important Events',
+              channelDescription: 'Important event notifications',
+              importance: Importance.high,
+              priority: Priority.high,
+            ),
+          ),
         );
-      } catch (e) { debugPrint('Foreground notification: $e'); }
+      }
     });
-    _openedSub = FirebaseMessaging.onMessageOpenedApp.listen((message) {
+
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) async {
       if (message.data['type'] == 'important_event') {
-        _pendingNotificationOpen = true;
-        if (_initializingFinished) unawaited(_openRecalculateOffer());
+        await _openRecalculateOffer();
       }
     });
-    unawaited(FirebaseMessaging.instance.getInitialMessage().then((message) {
-      if (message?.data['type'] == 'important_event') {
-        _pendingNotificationOpen = true;
-        if (_initializingFinished) unawaited(_openRecalculateOffer());
+
+    FirebaseMessaging.instance.getInitialMessage().then((message) async {
+      if (message != null && message.data['type'] == 'important_event') {
+        await _openRecalculateOffer();
       }
-    }).catchError((Object e) { debugPrint('Initial FCM message: $e'); }));
-    unawaited(localNotifications.getNotificationAppLaunchDetails().then((details) {
-      if (details?.didNotificationLaunchApp == true &&
-          details?.notificationResponse?.payload == 'important_event') {
-        _pendingNotificationOpen = true;
-        if (_initializingFinished) unawaited(_openRecalculateOffer());
-      }
-    }).catchError((Object e) { debugPrint('Local notification launch: $e'); }));
+    });
   }
 
-  Future<void> _openRecalculateOffer() async {
-    if (!mounted || _deviceKey == null || _openingOffer || !_initializingFinished ||
-        _screenState == AppScreenState.recalculateOffer ||
-        _screenState == AppScreenState.recalculating) return;
-    _openingOffer = true;
-    try {
-      final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-      final snapshot = await userRef.get(const GetOptions(source: Source.server));
-      if (!mounted) return;
-      final data = snapshot.data() ?? {};
-      final target = DateTime.tryParse('${data['target_date'] ?? ''}');
-      if (target == null) {
-        _pendingNotificationOpen = false;
-        if (_screenState == AppScreenState.initializing) {
-          setState(() => _screenState = AppScreenState.start);
-        }
-        return;
-      }
-      if (data['recalc_required'] != true) {
-        _pendingNotificationOpen = false;
-        return;
-      }
-      await _checkSurveyConfig();
-      await _loadEvents();
-      if (!mounted) return;
-      _pendingNotificationOpen = false;
-      _showInterstitialThenProceed(() {
-        if (!mounted) return;
-        setState(() => _screenState = AppScreenState.recalculateOffer);
-        unawaited(userRef.set({
-          'active_event_seen': true,
-          'active_event_seen_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true)).catchError((Object e) {
-          debugPrint('Event seen write error: $e');
-        }));
+
+Future<void> _openRecalculateOffer() async {
+  if (!mounted) return;
+
+  // Cihaz bilgisi henüz yüklenmediyse işlem yapma.
+  if (_deviceKey == null || !_initialRouteResolved) {
+    _pendingNotificationOpen = true;
+    return;
+  }
+  if (_notificationOfferOpening) return;
+  _notificationOfferOpening = true;
+
+  try {
+    final userRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(_deviceKey);
+
+    final userDoc = await userRef.get();
+    if (!mounted) return;
+
+    final data = userDoc.data() ?? {};
+    final targetDate = data['target_date'];
+
+    // İLK HESAPLAMA YAPILMAMIŞSA
+    // Geçiş reklamı gösterme.
+    if (targetDate == null ||
+        targetDate.toString().trim().isEmpty) {
+      debugPrint(
+        'İlk hesaplama yapılmamış. Geçiş reklamı atlandı.',
+      );
+
+      setState(() {
+        _screenState = AppScreenState.start;
       });
-    } catch (e) {
-      debugPrint('Open important event error: $e');
-    } finally {
-      _openingOffer = false;
+      return;
     }
-  }
 
+    // Kullanıcının daha önce hesaplaması var.
+    await _loadEvents();
+    if (!mounted) return;
+
+    // Geçiş reklamı varsa göster.
+    // Reklam kapandıktan sonra önemli gelişme ekranını aç.
+    _showInterstitialThenProceed(() {
+      if (!mounted) return;
+
+      setState(() {
+        _screenState = AppScreenState.recalculateOffer;
+      });
+    });
+  } catch (e) {
+    debugPrint('Önemli gelişme ekranı hatası: $e');
+  } finally {
+    _notificationOfferOpening = false;
+  }
+}
 
 
   // === DÜZELTME: Firestore'dan 'sayim' değeri güvenilir şekilde okunuyor ===
@@ -663,33 +678,58 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
   //    bile doğru parse ediliyor.
   // 4) Okunan değer debugPrint ile loglanıyor, "flutter logs" ile kontrol
   //    edebilirsiniz: "Firestore config -> sayim: X".
+ 
+Future<void> _checkSurveyConfig() async {
+  try {
+    final ref = FirebaseFirestore.instance
+        .collection('app_config')
+        .doc('settings');
 
-  Future<void> _checkSurveyConfig() async {
-    final ref = FirebaseFirestore.instance.collection('app_config').doc('settings');
     DocumentSnapshot<Map<String, dynamic>> doc;
-    try {
-      doc = await ref.get(const GetOptions(source: Source.server))
-          .timeout(const Duration(seconds: 10));
-    } catch (e) {
-      debugPrint('Config server unavailable: $e; trying cache');
-      doc = await ref.get(const GetOptions(source: Source.cache))
-          .timeout(const Duration(seconds: 5));
-    }
-    final data = doc.data();
-    if (data == null) throw StateError('app_config/settings missing');
-    final raw = data['sayim'];
-    final seconds = raw is num ? raw.toInt() : int.tryParse('$raw');
-    if (seconds == null || seconds <= 0 || seconds > 86400) {
-      throw StateError('Invalid Firestore sayim: $raw');
-    }
-    calculationSeconds = seconds;
-    _calculationLeft = seconds;
-    final survey = data['show_survey'];
-    _showSurveyConfig = survey == true || survey == 1 || survey == '1';
-    _configLoaded = true;
-    debugPrint('Firestore sayim=$seconds survey=$_showSurveyConfig');
-  }
 
+    try {
+      doc = await ref.get(
+        const GetOptions(source: Source.server),
+      ).timeout(const Duration(seconds: 10));
+    } catch (e) {
+      debugPrint('Firestore sunucu okuma hatası: $e');
+
+      doc = await ref.get(
+        const GetOptions(source: Source.cache),
+      ).timeout(const Duration(seconds: 5));
+    }
+
+    if (!doc.exists) {
+      debugPrint('HATA: app_config/settings bulunamadı.');
+      return;
+    }
+
+    final data = doc.data() ?? {};
+
+    final rawSayim = data['sayim'];
+    final parsedSayim = rawSayim is num
+        ? rawSayim.toInt()
+        : int.tryParse(rawSayim?.toString() ?? '');
+
+    if (parsedSayim != null && parsedSayim > 0) {
+      calculationSeconds = parsedSayim.clamp(1, 86400);
+    } else {
+      debugPrint('Geçersiz sayim değeri: $rawSayim');
+    }
+
+    final survey = data['show_survey'];
+    _showSurveyConfig =
+        survey == true || survey == 1 || survey == '1';
+
+    debugPrint('================================');
+    debugPrint('FIRESTORE SAYIM: $rawSayim');
+    debugPrint('UYGULAMA SAYIM: $calculationSeconds');
+    debugPrint('ANKET: $_showSurveyConfig');
+    debugPrint('================================');
+  } catch (e) {
+    debugPrint('Firestore ayar okuma başarısız: $e');
+  }
+}
 
 
   Future<void> _askNotificationPermissionWithModal() async {
@@ -703,7 +743,6 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
       return;
     }
 
-    if (!mounted) return;
     final l = AppLocalizations.of(context)!;
 
     final bool? accepted = await showDialog<bool>(
@@ -751,7 +790,6 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
       },
     );
 
-    if (!mounted) return;
     if (accepted == true) {
       await FirebaseMessaging.instance.requestPermission(
         alert: true,
@@ -786,12 +824,55 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
          debugPrint('Notification permission error: $e');
        }));
 
-      // Token retrieval must not delay Firestore initialization or routing.
-      unawaited(_updateFcmToken().catchError((Object e) {
-        debugPrint('FCM token setup error: $e');
-      }));
+   String? token;
 
-       await _checkSurveyConfig().timeout(const Duration(seconds: 16));
+try {
+  final messaging = FirebaseMessaging.instance;
+
+  final settings = await messaging.getNotificationSettings();
+
+  debugPrint('BILDIRIM IZNI: ${settings.authorizationStatus}');
+
+  if (Platform.isIOS) {
+    String? apnsToken;
+
+    // APNs bazen birkaç saniye geç geliyor.
+    for (int i = 0; i < 3; i++) {
+      apnsToken = await messaging.getAPNSToken();
+
+      debugPrint('APNS DENEME ${i + 1}: $apnsToken');
+
+      if (apnsToken != null && apnsToken.isNotEmpty) {
+        debugPrint('APNS TOKEN ALINDI: $apnsToken');
+        break;
+      }
+
+      await Future.delayed(const Duration(seconds: 1));
+    }
+
+    if (apnsToken == null || apnsToken.isEmpty) {
+      throw Exception('APNs token 30 saniye içinde alınamadı');
+    }
+  }
+
+  token = await messaging.getToken();
+
+  if (token == null || token.isEmpty) {
+    throw Exception('FCM token alınamadı');
+  }
+
+  debugPrint('==============================');
+  debugPrint('FCM TOKEN: $token');
+  debugPrint('DEVICE KEY: $_deviceKey');
+  debugPrint('==============================');
+
+} catch (e) {
+  debugPrint('FCM TOKEN HATASI: $e'); 
+}
+
+       await _checkSurveyConfig().timeout(const Duration(seconds: 8), onTimeout: () {
+         debugPrint('Survey config timeout, defaults kept');
+       });
 
       final userRef =
           FirebaseFirestore.instance.collection('users').doc(_deviceKey);
@@ -801,7 +882,8 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
         await userRef.set({
           'uid': _uid,
           'language': lang,
-                    'recalc_required': false,
+          'fcm_token': token,
+          'recalc_required': false,
           'active_event_id': null,
           'active_event_delta_days': null,
           'last_open_at': FieldValue.serverTimestamp(),
@@ -811,32 +893,54 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
         await userRef.set({
           'uid': _uid,
           'language': lang,
-                    'last_open_at': FieldValue.serverTimestamp(),
+          'fcm_token': token,
+          'last_open_at': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       }
 
+      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+        if (_deviceKey == null) return;
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(_deviceKey)
+            .set({
+          'fcm_token': newToken,
+          'updated_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        debugPrint('FCM token refreshed: $newToken');
+      });
+
        await _ensureUserDefaults().timeout(const Duration(seconds: 8));
+       _initialRouteResolved = true;
+       if (_pendingNotificationOpen) {
+         _pendingNotificationOpen = false;
+         await _openRecalculateOffer();
+         return;
+       }
        final freshDoc = await userRef.get().timeout(const Duration(seconds: 8));
       final data = freshDoc.data() ?? {};
 
-     _initializingFinished = true;
-      if (data['target_date'] != null &&
-          data['target_date'].toString().trim().isNotEmpty &&
-          data['recalc_required'] == true &&
-          (data['active_event_seen'] != true || _pendingNotificationOpen)) {
+     if (data['recalc_required'] == true &&
+    data['active_event_seen'] != true) {
 
-  _pendingNotificationOpen = false;
+  await userRef.set({
+    'active_event_seen': true,
+    'active_event_seen_at': FieldValue.serverTimestamp(),
+  }, SetOptions(merge: true));
+
   await _loadEvents();
+
   if (!mounted) return;
+
+  // Kalan süre ekranını göstermeden önce reklamı aç.
   _showInterstitialThenProceed(() {
     if (!mounted) return;
-    setState(() => _screenState = AppScreenState.recalculateOffer);
-    unawaited(userRef.set({
-      'active_event_seen': true,
-      'active_event_seen_at': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true)).catchError((Object e) {
-      debugPrint('Seen status update failed: $e');
-    }));
+
+    setState(() {
+      _screenState = AppScreenState.recalculateOffer;
+    });
   });
 
   return;
@@ -857,6 +961,7 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
 
            _showInterstitialThenProceed(() {
             _introAnimationDone = false;
+            _introFinishScheduled = false;
             _introEffectPlayedRows.clear();
             _introMainSoundPlayed = false;
 
@@ -880,35 +985,6 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
         setState(() => _screenState = AppScreenState.start);
       }
     }
-  }
-
-  Future<void> _updateFcmToken() async {
-    final messaging = FirebaseMessaging.instance;
-    if (Platform.isIOS) {
-      String? apns;
-      for (int i = 0; i < 12 && mounted; i++) {
-        apns = await messaging.getAPNSToken();
-        if (apns != null && apns.isNotEmpty) break;
-        await Future.delayed(const Duration(seconds: 1));
-      }
-      if (apns == null || apns.isEmpty) {
-        debugPrint('APNs token not ready; will retry on next launch');
-        return;
-      }
-    }
-    final token = await messaging.getToken();
-    if (token == null || token.isEmpty || _deviceKey == null) return;
-    final ref = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-    await ref.set({'fcm_token': token, 'updated_at': FieldValue.serverTimestamp()},
-        SetOptions(merge: true));
-    _tokenSub ??= messaging.onTokenRefresh.listen((value) {
-      if (_deviceKey == null) return;
-      unawaited(ref.set({'fcm_token': value,
-        'updated_at': FieldValue.serverTimestamp()},
-        SetOptions(merge: true)).catchError((Object e) {
-        debugPrint('FCM refresh update failed: $e');
-      }));
-    });
   }
 
   Future<void> _ensureUserDefaults() async {
@@ -936,15 +1012,15 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
   }
 
   Future<void> _startCalculation() async {
-    if (_startInProgress || _deviceKey == null || !mounted) return;
-    _startInProgress = true;
+    if (_deviceKey == null || _screenState != AppScreenState.start) return;
+    final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
     try {
-      final ref = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-      final doc = await ref.get();
+      final doc = await userRef.get();
       if (!mounted) return;
-      final existing = DateTime.tryParse('${doc.data()?['target_date'] ?? ''}');
-      if (existing != null) {
-        _targetDate = existing;
+      final data = doc.data() ?? {};
+      final saved = DateTime.tryParse('${data['target_date'] ?? ''}');
+      if (saved != null) {
+        _targetDate = saved;
         _startLifeCountdown();
         await _loadEvents();
         if (mounted) setState(() => _screenState = AppScreenState.result);
@@ -958,58 +1034,42 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
         await _proceedToCalculatingTimer();
       }
     } catch (e) {
-      debugPrint('Start calculation error: $e');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ayarlar yüklenemedi. İnternetinizi kontrol edip tekrar deneyin.')),
-      );
-    } finally {
-      _startInProgress = false;
+      debugPrint('Start calculation failed: $e');
     }
   }
 
-  Future<void> _proceedToCalculatingTimer() async {
-    if (!mounted || _deviceKey == null || _timerSetupInProgress ||
-        _screenState == AppScreenState.calculating) return;
-    _timerSetupInProgress = true;
-    try {
-      if (!_configLoaded) await _checkSurveyConfig();
-      final ref = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-      await ref.set({
-        'calculation_started_at': FieldValue.serverTimestamp(),
-        'calculation_status': 'started',
-        'updated_at': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-      if (!mounted) return;
-      _calculationTimer?.cancel();
-      setState(() {
-        _screenState = AppScreenState.calculating;
-        _calculationLeft = calculationSeconds;
-      });
-      _resumeCalculationTimer(recalculate: false);
-    } catch (e) {
-      debugPrint('Calculation setup failed: $e');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Hesaplama başlatılamadı. Tekrar deneyin.')),
-      );
-    } finally {
-      _timerSetupInProgress = false;
+    Future<void> _proceedToCalculatingTimer() async {
+    if (!mounted || _finishingCalculation) return;
+    _calculationTimer?.cancel();
+    // Read the current server value immediately before starting the first timer.
+    await _checkSurveyConfig();
+    if (!mounted) return;
+    if (_deviceKey != null) {
+      try {
+        await FirebaseFirestore.instance.collection('users').doc(_deviceKey).set({
+          'calculation_started_at': FieldValue.serverTimestamp(),
+          'calculation_status': 'started',
+          'updated_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (e) { debugPrint('Calculation start save: $e'); }
     }
+    if (!mounted) return;
+    setState(() { _screenState = AppScreenState.calculating; _calculationLeft = calculationSeconds; });
+    _resumeCalculationTimer(recalculate: false);
   }
 
-
-  // ANKET VERİLERİNİ HESAPLAMAYA DAHİL EDEN ALGORİTMA
+    // ANKET VERİLERİNİ HESAPLAMAYA DAHİL EDEN ALGORİTMA
   Future<void> _finishCalculation() async {
-    if (_calculationFinishing || !mounted) return;
-    _calculationFinishing = true;
-    try {
-    if (_deviceKey == null) return;
+    if (_deviceKey == null || _finishingCalculation || _adFlowActive) return;
+    _finishingCalculation = true;
+    _calculationTimer?.cancel();
     final userRef =
         FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-    // A deterministic transaction prevents concurrent first-time calculations.
-    final existingDoc = await userRef.get();
-    final existingDate = DateTime.tryParse('${existingDoc.data()?['target_date'] ?? ''}');
-    if (existingDate != null) {
-      _targetDate = existingDate;
+    final userDoc = await userRef.get();
+    final data = userDoc.data() ?? {};
+
+    if (data['target_date'] != null) {
+      _targetDate = DateTime.tryParse(data['target_date'].toString());
     } else {
       // Temel Rastgele Gün (10 - 50 Yıl Arasında)
       int baseDays = 3650 + Random.secure().nextInt((365 * 40));
@@ -1048,137 +1108,158 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
       // Minimum 30 gün güvenlik alt sınırı
       if (baseDays < 30) baseDays = 30;
 
-      final candidate = DateTime.now().add(Duration(days: baseDays));
-      final resolved = await FirebaseFirestore.instance.runTransaction<DateTime>((tx) async {
-        final current = await tx.get(userRef);
-        final stored = DateTime.tryParse('${current.data()?['target_date'] ?? ''}');
-        if (stored != null) return stored;
-        tx.set(userRef, {
-          'target_date': candidate.toIso8601String(),
-          'target_days': baseDays,
-          'calculation_status': 'completed',
-          'survey_data': {
-            'sleep_hours': _sleepHours,
-            'habits_yes': _habitsYes,
-            'stress_level': _stressLevel,
-            'exercise_days': _exerciseDays,
-          },
-          'calculated_at': FieldValue.serverTimestamp(),
-          'updated_at': FieldValue.serverTimestamp(),
-          'locked': true,
-        }, SetOptions(merge: true));
-        return candidate;
-      });
-      _targetDate = resolved;
+      _targetDate = DateTime.now().add(Duration(days: baseDays));
+
+      await userRef.set({
+        'target_date': _targetDate!.toIso8601String(),
+        'target_days': baseDays,
+        'calculation_status': 'completed',
+        'survey_data': {
+          'sleep_hours': _sleepHours,
+          'habits_yes': _habitsYes,
+          'stress_level': _stressLevel,
+          'exercise_days': _exerciseDays,
+        },
+        'calculated_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+        'locked': true,
+      }, SetOptions(merge: true));
       // NOT: İlk hesaplamada otomatik olarak 2 "kader" olayı (+3 gün / -240 gün)
       // eklenmesi kullanıcı isteği üzerine kaldırıldı. Artık olaylar sadece
       // sunucu tarafından (bildirimle) push edildiğinde oluşacak.
     }
 
     _introAnimationDone = false;
+    _introFinishScheduled = false;
     _introEffectPlayedRows.clear();
     _introMainSoundPlayed = false;
     _startLifeCountdown();
-    try { await _loadEvents(); } catch (e) { debugPrint('Events load failed: $e'); }
+    await _loadEvents();
 
     if (mounted) {
       _playResultIntroEffect();
       setState(() => _screenState = AppScreenState.result);
     }
-  
-    } catch (e) {
-      debugPrint('Initial calculation save failed: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sonuç kaydedilemedi. Tekrar deneniyor.')),
-        );
-        _calculationLeft = 3;
-        _resumeCalculationTimer(recalculate: false);
-      }
-    } finally { _calculationFinishing = false; }
+    _finishingCalculation = false;
   }
 
-  Future<void> _startRecalculation() async {
-    if (_recalculationStarting || _recalculationFinishing || !mounted ||
-        _screenState != AppScreenState.recalculateOffer) return;
-    _recalculationStarting = true;
-    try {
-      await _checkSurveyConfig();
-      if (!mounted) return;
-      _calculationTimer?.cancel();
-      _calculationLeft = calculationSeconds;
-      _resumeCalculationTimer(recalculate: true);
-    } catch (e) {
-      debugPrint('Recalculation setup failed: $e');
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Ayarlar yüklenemedi. Tekrar deneyin.')),
-      );
-    } finally { _recalculationStarting = false; }
-  }
+ 
+Future<void> _startRecalculation() async {
+  _calculationTimer?.cancel();
+  _calculationTimer = null;
+
+  // Her yeniden hesaplamada Firestore'daki güncel süreyi oku.
+  await _checkSurveyConfig();
+
+  if (!mounted) return;
+
+  setState(() {
+    _screenState = AppScreenState.recalculating;
+    _calculationLeft = calculationSeconds;
+  });
+
+  _resumeCalculationTimer(recalculate: true);
+}
+
 
   Future<void> _finishRecalculation() async {
-    if (_recalculationFinishing || !mounted || _deviceKey == null) return;
-    _recalculationFinishing = true;
+    if (_deviceKey == null || _finishingCalculation || _adFlowActive) return;
+    _finishingCalculation = true;
     _calculationTimer?.cancel();
+    final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
     try {
-      final ref = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-      final newDate = await FirebaseFirestore.instance.runTransaction<DateTime>((tx) async {
-        final snap = await tx.get(ref);
-        final data = snap.data() ?? {};
-        final oldDate = DateTime.tryParse('${data['target_date'] ?? ''}');
-        if (oldDate == null) throw StateError('Existing target_date missing');
-        if (data['recalc_required'] != true) return oldDate;
+      final updated = await FirebaseFirestore.instance.runTransaction<DateTime>((tx) async {
+        final snap = await tx.get(userRef);
+        final data = snap.data() ?? <String, dynamic>{};
+        final oldTarget = DateTime.tryParse('${data['target_date'] ?? ''}');
+        if (oldTarget == null) throw StateError('Existing target date missing');
         final eventId = data['active_event_id']?.toString();
         final rawMinutes = data['active_event_delta_minutes'];
         final rawDays = data['active_event_delta_days'];
         final minutes = rawMinutes != null
-            ? (int.tryParse('$rawMinutes') ?? 0)
-            : (int.tryParse('${rawDays ?? 0}') ?? 0) * 1440;
-        final updated = oldDate.add(Duration(minutes: minutes));
-        tx.set(ref, {
-          'target_date': updated.toIso8601String(),
-          'target_days': updated.difference(DateTime.now()).inDays,
+            ? (num.tryParse(rawMinutes.toString())?.toInt() ?? 0)
+            : (num.tryParse('${rawDays ?? 0}')?.toInt() ?? 0) * 1440;
+        if (data['recalc_required'] != true || eventId == null || eventId.isEmpty) {
+          return oldTarget;
+        }
+        final eventRef = userRef.collection('events').doc(eventId);
+        final eventSnap = await tx.get(eventRef);
+        if (eventSnap.data()?['applied'] == true) {
+          tx.set(userRef, {'recalc_required': false, 'active_event_id': null,
+            'active_event_delta_minutes': null, 'active_event_delta_days': null,
+            'active_event_seen': false}, SetOptions(merge: true));
+          return oldTarget;
+        }
+        final newTarget = oldTarget.add(Duration(minutes: minutes));
+        tx.set(userRef, {
+          'target_date': newTarget.toIso8601String(),
           'last_recalculated_at': FieldValue.serverTimestamp(),
-          'recalc_required': false,
-          'active_event_id': null,
-          'active_event_delta_minutes': null,
-          'active_event_delta_days': null,
-          'active_event_seen': false,
-          'updated_at': FieldValue.serverTimestamp(),
+          'recalc_required': false, 'active_event_id': null,
+          'active_event_delta_minutes': null, 'active_event_delta_days': null,
+          'active_event_seen': false, 'updated_at': FieldValue.serverTimestamp(),
           'locked': true,
         }, SetOptions(merge: true));
-        if (eventId != null && eventId.isNotEmpty) {
-          tx.set(ref.collection('events').doc(eventId), {
-            'applied': true,
-            'old_target_date': oldDate.toIso8601String(),
-            'new_target_date': updated.toIso8601String(),
-            'applied_at': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-        }
-        return updated;
+        tx.set(eventRef, {'applied': true,
+          'old_target_date': oldTarget.toIso8601String(),
+          'new_target_date': newTarget.toIso8601String(),
+          'applied_at': FieldValue.serverTimestamp()}, SetOptions(merge: true));
+        return newTarget;
       });
       if (!mounted) return;
-      _targetDate = newDate;
+      _targetDate = updated;
       _introAnimationDone = false;
+      _introFinishScheduled = false;
       _introEffectPlayedRows.clear();
       _introMainSoundPlayed = false;
-      try { await _loadEvents(); } catch (e) { debugPrint('Events refresh: $e'); }
+      await _loadEvents();
       if (!mounted) return;
       _startLifeCountdown();
-      unawaited(_playResultIntroEffect());
+      _playResultIntroEffect();
       setState(() => _screenState = AppScreenState.result);
     } catch (e) {
       debugPrint('Recalculation transaction failed: $e');
-      if (mounted) {
-        setState(() => _screenState = AppScreenState.recalculateOffer);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Değişiklik kaydedilemedi. Tekrar deneyin.')),
-        );
-      }
-    } finally { _recalculationFinishing = false; }
+      // Do not display an unsaved or incorrectly applied result.
+      if (mounted) setState(() => _screenState = AppScreenState.recalculateOffer);
+    } finally {
+      _finishingCalculation = false;
+    }
   }
 
+    Future<void> _createInitialEvents() async {
+    if (_deviceKey == null) return;
+    final l = AppLocalizations.of(context)!;
+    final batch = FirebaseFirestore.instance.batch();
+    final eventsRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(_deviceKey)
+        .collection('events');
+    final items = [
+      {
+        'days_delta': 3,
+        'title': l.eventPositiveTitle,
+        'description': l.eventPositiveDescription
+      },
+      {
+        'days_delta': -240,
+        'title': l.eventNegativeTitle,
+        'description': l.eventNegativeDescription
+      },
+    ];
 
+    for (final item in items) {
+      final doc = eventsRef.doc();
+      batch.set(doc, {
+        'title': item['title'],
+        'description': item['description'],
+        'days_delta': item['days_delta'],
+        'created_at': FieldValue.serverTimestamp(),
+        'source': 'system',
+        'read': false,
+        'applied': true,
+      });
+    }
+    await batch.commit();
+  }
 
   Future<void> _loadEvents() async {
     if (_deviceKey == null) return;
@@ -1224,7 +1305,6 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
-          if (!mounted) { ad.dispose(); return; }
           debugPrint('Rewarded ad loaded successfully');
           _rewardedAd = ad;
           _rewardedAdReady = true;
@@ -1322,21 +1402,14 @@ void _showRewardedAd({bool recalculate = false}) {
       ? AppScreenState.recalculating
       : AppScreenState.calculating;
 
-  if (recalculate && _screenState == AppScreenState.recalculateOffer) {
-    if (_recalculationStarting || _recalculationFinishing) return;
-    _calculationLeft = calculationSeconds;
-    setState(() => _screenState = AppScreenState.recalculating);
-  } else if (_screenState != expectedState) {
-    return;
-  }
-  if (_rewardedShowing) return;
-  _rewardedShowing = true;
+  if (_screenState != expectedState) return;
 
   _rewardedAd = null;
   _rewardedAdReady = false;
 
   bool handled = false;
   bool rewardEarned = false;
+  _adFlowActive = true;
 
   // Reklam süresince hesaplama tamamen durur.
   _calculationTimer?.cancel();
@@ -1345,6 +1418,7 @@ void _showRewardedAd({bool recalculate = false}) {
   void completeAdFlow() {
     if (handled) return;
     handled = true;
+    _adFlowActive = false;
 
     if (!mounted) return;
 
@@ -1369,7 +1443,6 @@ void _showRewardedAd({bool recalculate = false}) {
   }
 
   void cleanupAd() {
-    _rewardedShowing = false;
     ad.dispose();
 
     if (!mounted) return;
@@ -1494,7 +1567,7 @@ void _showRewardedAd({bool recalculate = false}) {
                 child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
                   onTap: () => setState(() => _menuOpen = false),
-                  child: Container(color: Colors.black.withValues(alpha: 0.85)),
+                  child: Container(color: Colors.black.withOpacity(0.85)),
                 ),
               ),
             if (_menuOpen)
@@ -1981,7 +2054,13 @@ void _showRewardedAd({bool recalculate = false}) {
             const SizedBox(height: 14),
             _outlineButton(
               text: _rewardedAdReady ? l.fastCalculateButton : l.loadingAd,
-              onPressed: () => _showRewardedAd(recalculate: true),
+              onPressed: () async {
+                if (!_rewardedAdReady) { _loadRewardedAd(); return; }
+                await _startRecalculation();
+                if (mounted && _screenState == AppScreenState.recalculating) {
+                  _showRewardedAd(recalculate: true);
+                }
+              },
             ),
           ],
         ),
@@ -1998,9 +2077,9 @@ void _showRewardedAd({bool recalculate = false}) {
         height: 60,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: Colors.black.withValues(alpha: 0.7),
+          color: Colors.black.withOpacity(0.7),
           border: Border.all(
-            color: Colors.grey.withValues(alpha: 0.35),
+            color: Colors.grey.withOpacity(0.35),
             width: 1.5,
           ),
         ),
@@ -2308,7 +2387,7 @@ void _showRewardedAd({bool recalculate = false}) {
                     ? 'https://play.google.com/store/apps/details?id=com.gerisayim.app'
                     : 'https://apps.apple.com/app/idXXXXXXXX';
 
-                SharePlus.instance.share(ShareParams(text: '${l.shareDefaultText}\n$appLink'));
+                Share.share('${l.shareDefaultText}\n$appLink');
               },
             ),
           ],
@@ -2352,18 +2431,17 @@ void _showRewardedAd({bool recalculate = false}) {
       final file = File('${dir.path}/gerisayim_counter.png');
       await file.writeAsBytes(bytes);
 
-      if (!mounted) return;
       final l = AppLocalizations.of(context)!;
 
       final RenderBox? box = context.findRenderObject() as RenderBox?;
       final Rect? sharePositionOrigin =
           box != null ? (box.localToGlobal(Offset.zero) & box.size) : null;
 
-      await SharePlus.instance.share(ShareParams(
-        files: [XFile(file.path)],
+      await Share.shareXFiles(
+        [XFile(file.path)],
         text: l.shareDefaultText,
         sharePositionOrigin: sharePositionOrigin,
-      ));
+      );
     } catch (e) {
       debugPrint('Share screenshot error: $e');
     }
@@ -2533,7 +2611,7 @@ class _GlitchTextState extends State<GlitchText> {
           child: Text(
             widget.text,
             textAlign: TextAlign.center,
-            style: widget.style.copyWith(color: Colors.redAccent.withValues(alpha: 0.75)),
+            style: widget.style.copyWith(color: Colors.redAccent.withOpacity(0.75)),
           ),
         ),
         Transform.translate(
@@ -2541,7 +2619,7 @@ class _GlitchTextState extends State<GlitchText> {
           child: Text(
             widget.text,
             textAlign: TextAlign.center,
-            style: widget.style.copyWith(color: Colors.cyanAccent.withValues(alpha: 0.75)),
+            style: widget.style.copyWith(color: Colors.cyanAccent.withOpacity(0.75)),
           ),
         ),
         Text(widget.text, textAlign: TextAlign.center, style: widget.style),
@@ -2599,7 +2677,7 @@ class _GlitchNumberState extends State<GlitchNumber> {
               widget.text,
               textAlign: TextAlign.right,
               style: widget.style.copyWith(
-                color: Colors.redAccent.withValues(alpha: 0.6),
+                color: Colors.redAccent.withOpacity(0.6),
               ),
             ),
           ),
@@ -2609,7 +2687,7 @@ class _GlitchNumberState extends State<GlitchNumber> {
               widget.text,
               textAlign: TextAlign.right,
               style: widget.style.copyWith(
-                color: Colors.cyanAccent.withValues(alpha: 0.6),
+                color: Colors.cyanAccent.withOpacity(0.6),
               ),
             ),
           ),
