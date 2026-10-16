@@ -1,14 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
-import 'dart:typed_data';
 import 'dart:ui';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -38,12 +36,12 @@ void main() async {
   final AudioContext audioContext = AudioContext(
     iOS: AudioContextIOS(
       category: AVAudioSessionCategory.playback,
-      options: {
+      options: const {
         AVAudioSessionOptions.mixWithOthers,
         AVAudioSessionOptions.defaultToSpeaker,
       },
     ),
-    android: AudioContextAndroid(),
+    android: const AudioContextAndroid(),
   );
   AudioPlayer.global.setAudioContext(audioContext);
 
@@ -219,8 +217,21 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   InterstitialAd? _interstitialAd;
   bool _interstitialReady = false;
   bool _introAnimationDone = false;
-  bool _introFinishScheduled = false;
   bool _menuOpen = false;
+  bool _initializingFinished = false;
+  bool _pendingNotificationOpen = false;
+  bool _openingOffer = false;
+  bool _startInProgress = false;
+  bool _timerSetupInProgress = false;
+  bool _calculationFinishing = false;
+  bool _recalculationFinishing = false;
+  bool _recalculationStarting = false;
+  bool _rewardedShowing = false;
+  bool _interstitialShowing = false;
+  bool _configLoaded = false;
+  StreamSubscription<RemoteMessage>? _messageSub;
+  StreamSubscription<RemoteMessage>? _openedSub;
+  StreamSubscription<String>? _tokenSub;
 
   RewardedAd? _rewardedAd;
   bool _rewardedAdReady = false;
@@ -229,7 +240,6 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   final Set<int> _introEffectPlayedRows = {};
   bool _introMainSoundPlayed = false;
   List<Map<String, dynamic>> _events = [];
-  DateTime? _introStartTime;
 
   // --- ANKET DEĞİŞKENLERİ ---
   bool _showSurveyConfig = false;
@@ -294,6 +304,9 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
 
   @override
   void dispose() {
+    _messageSub?.cancel();
+    _openedSub?.cancel();
+    _tokenSub?.cancel();
     _startPlayer.dispose();
     _lifeTimer?.cancel();
     _calculationTimer?.cancel();
@@ -311,16 +324,6 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     _turnFlashOff();
   }
 
-  Future<void> _playStartSound() async {
-    try {
-      await _startPlayer.stop();
-      await _startPlayer.setReleaseMode(ReleaseMode.stop);
-      await _startPlayer.setVolume(1.0);
-      await _startPlayer.play(AssetSource('icon/start.mp3'));
-    } catch (e) {
-      debugPrint('Start sound error: $e');
-    }
-  }
 
   Future<String> _getDeviceKey() async {
     final deviceInfo = DeviceInfoPlugin();
@@ -342,7 +345,6 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     if (_introMainSoundPlayed) return;
 
     _introMainSoundPlayed = true;
-    _introStartTime = DateTime.now();
 
     try {
       await _startPlayer.setPlayerMode(PlayerMode.mediaPlayer);
@@ -436,6 +438,7 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
+          if (!mounted) { ad.dispose(); return; }
           _interstitialAd = ad;
           _interstitialReady = true;
 
@@ -478,107 +481,179 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   // yapılmışsa), sonuç ekranını göstermeden HEMEN ÖNCE geçiş reklamını
   // gösteriyoruz. Reklam hazır değilse (henüz yüklenmediyse) kullanıcıyı
   // bekletmeden direkt sonuç ekranına geçiyoruz.
-  void _showInterstitialThenProceed(VoidCallback onDone) {
-    final ad = _interstitialAd;
 
-    if (ad == null || !_interstitialReady) {
-      debugPrint('Interstitial hazır değil, reklamsız devam ediliyor.');
+void _showInterstitialThenProceed(VoidCallback onDone) {
+  final ad = _interstitialAd;
+
+  if (_interstitialShowing) {
+    debugPrint('Interstitial already displaying; ignoring duplicate route.');
+    return;
+  }
+  if (ad == null || !_interstitialReady) {
+    debugPrint('Interstitial hazır değil, reklamsız devam.');
+    if (mounted) onDone();
+    return;
+  }
+
+  _interstitialAd = null;
+  _interstitialReady = false;
+  _interstitialShowing = true;
+
+  bool done = false;
+  bool adOpened = false;
+  Timer? openingWatchdog;
+
+  void proceedOnce() {
+    if (done) return;
+    done = true;
+    openingWatchdog?.cancel();
+
+    if (mounted) {
       onDone();
-      return;
-    }
-
-    _interstitialAd = null;
-    _interstitialReady = false;
-
-    bool done = false;
-    // iOS SDK callback göndermese bile kullanıcı splash ekranında kalmasın.
-    Timer? watchdog;
-    void proceedOnce() {
-      if (done) return;
-      done = true;
-      watchdog?.cancel();
-      onDone();
-    }
-
-    ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdShowedFullScreenContent: (ad) async {
-        await _pauseAllSounds();
-        _stopFlashEffect();
-      },
-      onAdDismissedFullScreenContent: (ad) async {
-        ad.dispose();
-        await _resumeAllSounds();
-        _startRandomFlashEffect();
-        _loadInterstitialAd();
-        proceedOnce();
-      },
-      onAdFailedToShowFullScreenContent: (ad, error) async {
-        ad.dispose();
-        await _resumeAllSounds();
-        _loadInterstitialAd();
-        proceedOnce();
-      },
-    );
-
-    // Reklam SDK callback vermezse en geç 8 saniye sonra devam et.
-    watchdog = Timer(const Duration(seconds: 8), proceedOnce);
-    try {
-      ad.show();
-    } catch (e) {
-      debugPrint('Interstitial show error: $e');
-      proceedOnce();
     }
   }
 
-  void _listenNotificationClicks() {
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-      final notification = message.notification;
+  void cleanupAd() {
+    openingWatchdog?.cancel();
+    _interstitialShowing = false;
+    ad.dispose();
 
-      if (notification != null) {
-        await localNotifications.show(
-          notification.hashCode,
-          notification.title,
-          notification.body,
-          const NotificationDetails(
-            android: AndroidNotificationDetails(
-              'important_events',
-              'Important Events',
-              channelDescription: 'Important event notifications',
-              importance: Importance.high,
-              priority: Priority.high,
-            ),
-          ),
-        );
-      }
-    });
-
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) async {
-      if (message.data['type'] == 'important_event') {
-        await _openRecalculateOffer();
-      }
-    });
-
-    FirebaseMessaging.instance.getInitialMessage().then((message) async {
-      if (message != null && message.data['type'] == 'important_event') {
-        await _openRecalculateOffer();
-      }
-    });
-  }
-
-Future<void> _openRecalculateOffer() async {
-  await _loadEvents();
-  if (!mounted) return;
-
-  // Önce reklam göster.
-  // Reklam kapandıktan sonra "önemli değişiklik" ekranına geç.
-  _showInterstitialThenProceed(() {
     if (!mounted) return;
 
-    setState(() {
-      _screenState = AppScreenState.recalculateOffer;
-    });
+    unawaited(_resumeAllSounds());
+    _startRandomFlashEffect();
+    _loadInterstitialAd();
+  }
+
+  ad.fullScreenContentCallback = FullScreenContentCallback(
+    onAdShowedFullScreenContent: (ad) {
+      adOpened = true;
+
+      // Reklam açıldı. Artık zaman aşımı ekranı geçemez.
+      openingWatchdog?.cancel();
+
+      unawaited(_pauseAllSounds());
+      _stopFlashEffect();
+
+      debugPrint('Interstitial açıldı, kapanması bekleniyor.');
+    },
+
+    onAdDismissedFullScreenContent: (ad) {
+      debugPrint('Interstitial kapatıldı.');
+      cleanupAd();
+      proceedOnce();
+    },
+
+    onAdFailedToShowFullScreenContent: (ad, error) {
+      debugPrint('Interstitial gösterim hatası: $error');
+      cleanupAd();
+      proceedOnce();
+    },
+  );
+
+  // Yalnızca reklamın açılışını bekleyen güvenlik süresi.
+  openingWatchdog = Timer(const Duration(seconds: 8), () {
+    if (done || adOpened) return;
+
+    // Gösterim durumu belirsizken ekranı ilerletme.
+    // Geç gelen reklamın sonuç ekranı üzerinde
+    // açılmasını önlemek için güvenli tarafta kal.
+    debugPrint(
+      'Interstitial açılış callback gecikti; '
+      'reklam sonucu bekleniyor.',
+    );
   });
+
+  try {
+    ad.show();
+  } catch (e) {
+    debugPrint('Interstitial show exception: $e');
+    cleanupAd();
+    proceedOnce();
+  }
 }
+
+  void _listenNotificationClicks() {
+    _messageSub = FirebaseMessaging.onMessage.listen((message) async {
+      final notification = message.notification;
+      if (notification == null) return;
+      try {
+        await localNotifications.show(
+          notification.hashCode, notification.title, notification.body,
+          const NotificationDetails(android: AndroidNotificationDetails(
+            'important_events', 'Important Events',
+            channelDescription: 'Important event notifications',
+            importance: Importance.high, priority: Priority.high,
+          )),
+          payload: message.data['type']?.toString(),
+        );
+      } catch (e) { debugPrint('Foreground notification: $e'); }
+    });
+    _openedSub = FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      if (message.data['type'] == 'important_event') {
+        _pendingNotificationOpen = true;
+        if (_initializingFinished) unawaited(_openRecalculateOffer());
+      }
+    });
+    unawaited(FirebaseMessaging.instance.getInitialMessage().then((message) {
+      if (message?.data['type'] == 'important_event') {
+        _pendingNotificationOpen = true;
+        if (_initializingFinished) unawaited(_openRecalculateOffer());
+      }
+    }).catchError((Object e) { debugPrint('Initial FCM message: $e'); }));
+    unawaited(localNotifications.getNotificationAppLaunchDetails().then((details) {
+      if (details?.didNotificationLaunchApp == true &&
+          details?.notificationResponse?.payload == 'important_event') {
+        _pendingNotificationOpen = true;
+        if (_initializingFinished) unawaited(_openRecalculateOffer());
+      }
+    }).catchError((Object e) { debugPrint('Local notification launch: $e'); }));
+  }
+
+  Future<void> _openRecalculateOffer() async {
+    if (!mounted || _deviceKey == null || _openingOffer || !_initializingFinished ||
+        _screenState == AppScreenState.recalculateOffer ||
+        _screenState == AppScreenState.recalculating) return;
+    _openingOffer = true;
+    try {
+      final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
+      final snapshot = await userRef.get(const GetOptions(source: Source.server));
+      if (!mounted) return;
+      final data = snapshot.data() ?? {};
+      final target = DateTime.tryParse('${data['target_date'] ?? ''}');
+      if (target == null) {
+        _pendingNotificationOpen = false;
+        if (_screenState == AppScreenState.initializing) {
+          setState(() => _screenState = AppScreenState.start);
+        }
+        return;
+      }
+      if (data['recalc_required'] != true) {
+        _pendingNotificationOpen = false;
+        return;
+      }
+      await _checkSurveyConfig();
+      await _loadEvents();
+      if (!mounted) return;
+      _pendingNotificationOpen = false;
+      _showInterstitialThenProceed(() {
+        if (!mounted) return;
+        setState(() => _screenState = AppScreenState.recalculateOffer);
+        unawaited(userRef.set({
+          'active_event_seen': true,
+          'active_event_seen_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true)).catchError((Object e) {
+          debugPrint('Event seen write error: $e');
+        }));
+      });
+    } catch (e) {
+      debugPrint('Open important event error: $e');
+    } finally {
+      _openingOffer = false;
+    }
+  }
+
+
 
   // === DÜZELTME: Firestore'dan 'sayim' değeri güvenilir şekilde okunuyor ===
   // 1) Önce sunucudan (Source.server) zorla okunuyor ki eski/boş cache
@@ -588,47 +663,34 @@ Future<void> _openRecalculateOffer() async {
   //    bile doğru parse ediliyor.
   // 4) Okunan değer debugPrint ile loglanıyor, "flutter logs" ile kontrol
   //    edebilirsiniz: "Firestore config -> sayim: X".
+
   Future<void> _checkSurveyConfig() async {
-    DocumentSnapshot<Map<String, dynamic>>? doc;
-
+    final ref = FirebaseFirestore.instance.collection('app_config').doc('settings');
+    DocumentSnapshot<Map<String, dynamic>> doc;
     try {
-      doc = await FirebaseFirestore.instance
-          .collection('app_config')
-          .doc('settings')
-          .get(GetOptions(source: Source.server));
+      doc = await ref.get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 10));
     } catch (e) {
-      debugPrint('Config fetch (server) error: $e');
-      try {
-        doc = await FirebaseFirestore.instance
-            .collection('app_config')
-            .doc('settings')
-            .get();
-      } catch (e2) {
-        debugPrint('Config fetch (cache) error: $e2');
-        _showSurveyConfig = false;
-        return;
-      }
+      debugPrint('Config server unavailable: $e; trying cache');
+      doc = await ref.get(const GetOptions(source: Source.cache))
+          .timeout(const Duration(seconds: 5));
     }
-
-    if (doc.exists && doc.data() != null) {
-      final data = doc.data()!;
-      final val = data['show_survey'];
-      _showSurveyConfig = (val == 1 || val == true);
-
-      final rawSayim = data['sayim'];
-      if (rawSayim != null) {
-        if (rawSayim is num) {
-          calculationSeconds = rawSayim.toInt();
-        } else {
-          calculationSeconds =
-              int.tryParse(rawSayim.toString()) ?? calculationSeconds;
-        }
-      }
-
-      debugPrint(
-          'Firestore config -> sayim: $calculationSeconds saniye, show_survey: $_showSurveyConfig');
+    final data = doc.data();
+    if (data == null) throw StateError('app_config/settings missing');
+    final raw = data['sayim'];
+    final seconds = raw is num ? raw.toInt() : int.tryParse('$raw');
+    if (seconds == null || seconds <= 0 || seconds > 86400) {
+      throw StateError('Invalid Firestore sayim: $raw');
     }
+    calculationSeconds = seconds;
+    _calculationLeft = seconds;
+    final survey = data['show_survey'];
+    _showSurveyConfig = survey == true || survey == 1 || survey == '1';
+    _configLoaded = true;
+    debugPrint('Firestore sayim=$seconds survey=$_showSurveyConfig');
   }
+
+
 
   Future<void> _askNotificationPermissionWithModal() async {
     if (!mounted) return;
@@ -641,6 +703,7 @@ Future<void> _openRecalculateOffer() async {
       return;
     }
 
+    if (!mounted) return;
     final l = AppLocalizations.of(context)!;
 
     final bool? accepted = await showDialog<bool>(
@@ -688,6 +751,7 @@ Future<void> _openRecalculateOffer() async {
       },
     );
 
+    if (!mounted) return;
     if (accepted == true) {
       await FirebaseMessaging.instance.requestPermission(
         alert: true,
@@ -722,55 +786,12 @@ Future<void> _openRecalculateOffer() async {
          debugPrint('Notification permission error: $e');
        }));
 
-   String? token;
+      // Token retrieval must not delay Firestore initialization or routing.
+      unawaited(_updateFcmToken().catchError((Object e) {
+        debugPrint('FCM token setup error: $e');
+      }));
 
-try {
-  final messaging = FirebaseMessaging.instance;
-
-  final settings = await messaging.getNotificationSettings();
-
-  debugPrint('BILDIRIM IZNI: ${settings.authorizationStatus}');
-
-  if (Platform.isIOS) {
-    String? apnsToken;
-
-    // APNs bazen birkaç saniye geç geliyor.
-    for (int i = 0; i < 30; i++) {
-      apnsToken = await messaging.getAPNSToken();
-
-      debugPrint('APNS DENEME ${i + 1}: $apnsToken');
-
-      if (apnsToken != null && apnsToken.isNotEmpty) {
-        debugPrint('APNS TOKEN ALINDI: $apnsToken');
-        break;
-      }
-
-      await Future.delayed(const Duration(seconds: 1));
-    }
-
-    if (apnsToken == null || apnsToken.isEmpty) {
-      throw Exception('APNs token 30 saniye içinde alınamadı');
-    }
-  }
-
-  token = await messaging.getToken();
-
-  if (token == null || token.isEmpty) {
-    throw Exception('FCM token alınamadı');
-  }
-
-  debugPrint('==============================');
-  debugPrint('FCM TOKEN: $token');
-  debugPrint('DEVICE KEY: $_deviceKey');
-  debugPrint('==============================');
-
-} catch (e) {
-  debugPrint('FCM TOKEN HATASI: $e'); 
-}
-
-       await _checkSurveyConfig().timeout(const Duration(seconds: 8), onTimeout: () {
-         debugPrint('Survey config timeout, defaults kept');
-       });
+       await _checkSurveyConfig().timeout(const Duration(seconds: 16));
 
       final userRef =
           FirebaseFirestore.instance.collection('users').doc(_deviceKey);
@@ -780,8 +801,7 @@ try {
         await userRef.set({
           'uid': _uid,
           'language': lang,
-          'fcm_token': token,
-          'recalc_required': false,
+                    'recalc_required': false,
           'active_event_id': null,
           'active_event_delta_days': null,
           'last_open_at': FieldValue.serverTimestamp(),
@@ -791,48 +811,32 @@ try {
         await userRef.set({
           'uid': _uid,
           'language': lang,
-          'fcm_token': token,
-          'last_open_at': FieldValue.serverTimestamp(),
+                    'last_open_at': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       }
-
-      FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
-        if (_deviceKey == null) return;
-
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(_deviceKey)
-            .set({
-          'fcm_token': newToken,
-          'updated_at': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        debugPrint('FCM token refreshed: $newToken');
-      });
 
        await _ensureUserDefaults().timeout(const Duration(seconds: 8));
        final freshDoc = await userRef.get().timeout(const Duration(seconds: 8));
       final data = freshDoc.data() ?? {};
 
-     if (data['recalc_required'] == true &&
-    data['active_event_seen'] != true) {
+     _initializingFinished = true;
+      if (data['target_date'] != null &&
+          data['target_date'].toString().trim().isNotEmpty &&
+          data['recalc_required'] == true &&
+          (data['active_event_seen'] != true || _pendingNotificationOpen)) {
 
-  await userRef.set({
-    'active_event_seen': true,
-    'active_event_seen_at': FieldValue.serverTimestamp(),
-  }, SetOptions(merge: true));
-
+  _pendingNotificationOpen = false;
   await _loadEvents();
-
   if (!mounted) return;
-
-  // Kalan süre ekranını göstermeden önce reklamı aç.
   _showInterstitialThenProceed(() {
     if (!mounted) return;
-
-    setState(() {
-      _screenState = AppScreenState.recalculateOffer;
-    });
+    setState(() => _screenState = AppScreenState.recalculateOffer);
+    unawaited(userRef.set({
+      'active_event_seen': true,
+      'active_event_seen_at': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true)).catchError((Object e) {
+      debugPrint('Seen status update failed: $e');
+    }));
   });
 
   return;
@@ -853,7 +857,6 @@ try {
 
            _showInterstitialThenProceed(() {
             _introAnimationDone = false;
-            _introFinishScheduled = false;
             _introEffectPlayedRows.clear();
             _introMainSoundPlayed = false;
 
@@ -877,6 +880,35 @@ try {
         setState(() => _screenState = AppScreenState.start);
       }
     }
+  }
+
+  Future<void> _updateFcmToken() async {
+    final messaging = FirebaseMessaging.instance;
+    if (Platform.isIOS) {
+      String? apns;
+      for (int i = 0; i < 12 && mounted; i++) {
+        apns = await messaging.getAPNSToken();
+        if (apns != null && apns.isNotEmpty) break;
+        await Future.delayed(const Duration(seconds: 1));
+      }
+      if (apns == null || apns.isEmpty) {
+        debugPrint('APNs token not ready; will retry on next launch');
+        return;
+      }
+    }
+    final token = await messaging.getToken();
+    if (token == null || token.isEmpty || _deviceKey == null) return;
+    final ref = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
+    await ref.set({'fcm_token': token, 'updated_at': FieldValue.serverTimestamp()},
+        SetOptions(merge: true));
+    _tokenSub ??= messaging.onTokenRefresh.listen((value) {
+      if (_deviceKey == null) return;
+      unawaited(ref.set({'fcm_token': value,
+        'updated_at': FieldValue.serverTimestamp()},
+        SetOptions(merge: true)).catchError((Object e) {
+        debugPrint('FCM refresh update failed: $e');
+      }));
+    });
   }
 
   Future<void> _ensureUserDefaults() async {
@@ -904,84 +936,80 @@ try {
   }
 
   Future<void> _startCalculation() async {
-    if (_deviceKey == null) return;
-
-    final userRef =
-        FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-    final doc = await userRef.get();
-    final data = doc.data() ?? {};
-
-    if (data['target_date'] != null) {
-      _targetDate = DateTime.tryParse(data['target_date'].toString());
-      _startLifeCountdown();
-      await _loadEvents();
-      if (mounted) setState(() => _screenState = AppScreenState.result);
-      return;
+    if (_startInProgress || _deviceKey == null || !mounted) return;
+    _startInProgress = true;
+    try {
+      final ref = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
+      final doc = await ref.get();
+      if (!mounted) return;
+      final existing = DateTime.tryParse('${doc.data()?['target_date'] ?? ''}');
+      if (existing != null) {
+        _targetDate = existing;
+        _startLifeCountdown();
+        await _loadEvents();
+        if (mounted) setState(() => _screenState = AppScreenState.result);
+        return;
+      }
+      await _checkSurveyConfig();
+      if (!mounted) return;
+      if (_showSurveyConfig) {
+        setState(() { _surveyStep = 0; _screenState = AppScreenState.survey; });
+      } else {
+        await _proceedToCalculatingTimer();
+      }
+    } catch (e) {
+      debugPrint('Start calculation error: $e');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ayarlar yüklenemedi. İnternetinizi kontrol edip tekrar deneyin.')),
+      );
+    } finally {
+      _startInProgress = false;
     }
-
-    await _checkSurveyConfig();
-
-    if (_showSurveyConfig) {
-      setState(() {
-        _surveyStep = 0;
-        _screenState = AppScreenState.survey;
-      });
-      return;
-    }
-
-    _proceedToCalculatingTimer();
   }
 
-  void _proceedToCalculatingTimer() async {
-    if (_deviceKey != null) {
-      final userRef =
-          FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-      await userRef.set({
+  Future<void> _proceedToCalculatingTimer() async {
+    if (!mounted || _deviceKey == null || _timerSetupInProgress ||
+        _screenState == AppScreenState.calculating) return;
+    _timerSetupInProgress = true;
+    try {
+      if (!_configLoaded) await _checkSurveyConfig();
+      final ref = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
+      await ref.set({
         'calculation_started_at': FieldValue.serverTimestamp(),
         'calculation_status': 'started',
         'updated_at': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-    }
-
-    _calculationTimer?.cancel();
-    setState(() {
-      _screenState = AppScreenState.calculating;
-      _calculationLeft = calculationSeconds;
-    });
-
-    _calculationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_soundEnabled) {
-        HapticFeedback.selectionClick();
-        SystemSound.play(SystemSoundType.click);
-      }
-
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-
-      if (_calculationLeft <= 1) {
-        timer.cancel();
-        _finishCalculation();
-        return;
-      }
-
+      if (!mounted) return;
+      _calculationTimer?.cancel();
       setState(() {
-        _calculationLeft--;
+        _screenState = AppScreenState.calculating;
+        _calculationLeft = calculationSeconds;
       });
-    });
+      _resumeCalculationTimer(recalculate: false);
+    } catch (e) {
+      debugPrint('Calculation setup failed: $e');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Hesaplama başlatılamadı. Tekrar deneyin.')),
+      );
+    } finally {
+      _timerSetupInProgress = false;
+    }
   }
+
 
   // ANKET VERİLERİNİ HESAPLAMAYA DAHİL EDEN ALGORİTMA
   Future<void> _finishCalculation() async {
+    if (_calculationFinishing || !mounted) return;
+    _calculationFinishing = true;
+    try {
     if (_deviceKey == null) return;
     final userRef =
         FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-    final userDoc = await userRef.get();
-    final data = userDoc.data() ?? {};
-
-    if (data['target_date'] != null) {
-      _targetDate = DateTime.tryParse(data['target_date'].toString());
+    // A deterministic transaction prevents concurrent first-time calculations.
+    final existingDoc = await userRef.get();
+    final existingDate = DateTime.tryParse('${existingDoc.data()?['target_date'] ?? ''}');
+    if (existingDate != null) {
+      _targetDate = existingDate;
     } else {
       // Temel Rastgele Gün (10 - 50 Yıl Arasında)
       int baseDays = 3650 + Random.secure().nextInt((365 * 40));
@@ -1020,184 +1048,137 @@ try {
       // Minimum 30 gün güvenlik alt sınırı
       if (baseDays < 30) baseDays = 30;
 
-      _targetDate = DateTime.now().add(Duration(days: baseDays));
-
-      await userRef.set({
-        'target_date': _targetDate!.toIso8601String(),
-        'target_days': baseDays,
-        'calculation_status': 'completed',
-        'survey_data': {
-          'sleep_hours': _sleepHours,
-          'habits_yes': _habitsYes,
-          'stress_level': _stressLevel,
-          'exercise_days': _exerciseDays,
-        },
-        'calculated_at': FieldValue.serverTimestamp(),
-        'updated_at': FieldValue.serverTimestamp(),
-        'locked': true,
-      }, SetOptions(merge: true));
+      final candidate = DateTime.now().add(Duration(days: baseDays));
+      final resolved = await FirebaseFirestore.instance.runTransaction<DateTime>((tx) async {
+        final current = await tx.get(userRef);
+        final stored = DateTime.tryParse('${current.data()?['target_date'] ?? ''}');
+        if (stored != null) return stored;
+        tx.set(userRef, {
+          'target_date': candidate.toIso8601String(),
+          'target_days': baseDays,
+          'calculation_status': 'completed',
+          'survey_data': {
+            'sleep_hours': _sleepHours,
+            'habits_yes': _habitsYes,
+            'stress_level': _stressLevel,
+            'exercise_days': _exerciseDays,
+          },
+          'calculated_at': FieldValue.serverTimestamp(),
+          'updated_at': FieldValue.serverTimestamp(),
+          'locked': true,
+        }, SetOptions(merge: true));
+        return candidate;
+      });
+      _targetDate = resolved;
       // NOT: İlk hesaplamada otomatik olarak 2 "kader" olayı (+3 gün / -240 gün)
       // eklenmesi kullanıcı isteği üzerine kaldırıldı. Artık olaylar sadece
       // sunucu tarafından (bildirimle) push edildiğinde oluşacak.
     }
 
     _introAnimationDone = false;
-    _introFinishScheduled = false;
     _introEffectPlayedRows.clear();
     _introMainSoundPlayed = false;
     _startLifeCountdown();
-    await _loadEvents();
+    try { await _loadEvents(); } catch (e) { debugPrint('Events load failed: $e'); }
 
     if (mounted) {
       _playResultIntroEffect();
       setState(() => _screenState = AppScreenState.result);
     }
+  
+    } catch (e) {
+      debugPrint('Initial calculation save failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sonuç kaydedilemedi. Tekrar deneniyor.')),
+        );
+        _calculationLeft = 3;
+        _resumeCalculationTimer(recalculate: false);
+      }
+    } finally { _calculationFinishing = false; }
   }
 
-  void _startRecalculation() {
-    _calculationTimer?.cancel();
-
-    setState(() {
-      _screenState = AppScreenState.recalculating;
+  Future<void> _startRecalculation() async {
+    if (_recalculationStarting || _recalculationFinishing || !mounted ||
+        _screenState != AppScreenState.recalculateOffer) return;
+    _recalculationStarting = true;
+    try {
+      await _checkSurveyConfig();
+      if (!mounted) return;
+      _calculationTimer?.cancel();
       _calculationLeft = calculationSeconds;
-    });
-
-    _calculationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_soundEnabled) {
-        HapticFeedback.selectionClick();
-        SystemSound.play(SystemSoundType.click);
-      }
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-
-      if (_calculationLeft <= 1) {
-        timer.cancel();
-        _finishRecalculation();
-        return;
-      }
-
-      setState(() {
-        _calculationLeft--;
-      });
-    });
+      _resumeCalculationTimer(recalculate: true);
+    } catch (e) {
+      debugPrint('Recalculation setup failed: $e');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ayarlar yüklenemedi. Tekrar deneyin.')),
+      );
+    } finally { _recalculationStarting = false; }
   }
 
   Future<void> _finishRecalculation() async {
-    if (_deviceKey == null) {
-      await _finishCalculation();
-      return;
-    }
-
-    final userRef =
-        FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-
-    DateTime oldTarget = DateTime.now().add(
-      Duration(days: 7 + Random.secure().nextInt((365 * 50) - 7 + 1)),
-    );
-
-    String? eventId;
-    int deltaMinutes = 0;
-
+    if (_recalculationFinishing || !mounted || _deviceKey == null) return;
+    _recalculationFinishing = true;
+    _calculationTimer?.cancel();
     try {
-      final doc = await userRef.get();
-      final data = doc.data() ?? {};
-
-      eventId = data['active_event_id']?.toString();
-
-      deltaMinutes = int.tryParse('${data['active_event_delta_minutes'] ?? 0}') ??
-          ((int.tryParse('${data['active_event_delta_days'] ?? 0}') ?? 0) *
-              1440);
-
-      final oldTargetRaw = data['target_date'];
-
-      if (oldTargetRaw != null && oldTargetRaw.toString().isNotEmpty) {
-        oldTarget = DateTime.tryParse(oldTargetRaw.toString()) ?? oldTarget;
-      }
-
-      final newTarget = oldTarget.add(Duration(minutes: deltaMinutes));
-
-      await userRef.set({
-        'target_date': newTarget.toIso8601String(),
-        'last_recalculated_at': FieldValue.serverTimestamp(),
-        'recalc_required': false,
-        'active_event_id': null,
-        'active_event_delta_minutes': null,
-        'active_event_delta_days': null,
-        'active_event_seen': false,
-        'updated_at': FieldValue.serverTimestamp(),
-        'locked': true,
-      }, SetOptions(merge: true));
-
-      if (eventId != null && eventId.isNotEmpty) {
-        await userRef.collection('events').doc(eventId).set({
-          'applied': true,
-          'old_target_date': oldTarget.toIso8601String(),
-          'new_target_date': newTarget.toIso8601String(),
-          'applied_at': FieldValue.serverTimestamp(),
+      final ref = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
+      final newDate = await FirebaseFirestore.instance.runTransaction<DateTime>((tx) async {
+        final snap = await tx.get(ref);
+        final data = snap.data() ?? {};
+        final oldDate = DateTime.tryParse('${data['target_date'] ?? ''}');
+        if (oldDate == null) throw StateError('Existing target_date missing');
+        if (data['recalc_required'] != true) return oldDate;
+        final eventId = data['active_event_id']?.toString();
+        final rawMinutes = data['active_event_delta_minutes'];
+        final rawDays = data['active_event_delta_days'];
+        final minutes = rawMinutes != null
+            ? (int.tryParse('$rawMinutes') ?? 0)
+            : (int.tryParse('${rawDays ?? 0}') ?? 0) * 1440;
+        final updated = oldDate.add(Duration(minutes: minutes));
+        tx.set(ref, {
+          'target_date': updated.toIso8601String(),
+          'target_days': updated.difference(DateTime.now()).inDays,
+          'last_recalculated_at': FieldValue.serverTimestamp(),
+          'recalc_required': false,
+          'active_event_id': null,
+          'active_event_delta_minutes': null,
+          'active_event_delta_days': null,
+          'active_event_seen': false,
+          'updated_at': FieldValue.serverTimestamp(),
+          'locked': true,
         }, SetOptions(merge: true));
-      }
-
-      _targetDate = newTarget;
-    } catch (e) {
-      debugPrint('Recalculation error: $e');
-      _targetDate = oldTarget.add(Duration(minutes: deltaMinutes));
-    }
-
-    _introAnimationDone = false;
-    _introFinishScheduled = false;
-    _introEffectPlayedRows.clear();
-    _introMainSoundPlayed = false;
-
-    await _loadEvents();
-    _startLifeCountdown();
-
-    if (mounted) {
-      _playResultIntroEffect();
-      setState(() => _screenState = AppScreenState.result);
-    }
-    Future.delayed(const Duration(milliseconds: 50), () {
-      if (!mounted) return;
-      setState(() {});
-    });
-  }
-
-  Future<void> _createInitialEvents() async {
-    if (_deviceKey == null) return;
-    final l = AppLocalizations.of(context)!;
-    final batch = FirebaseFirestore.instance.batch();
-    final eventsRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(_deviceKey)
-        .collection('events');
-    final items = [
-      {
-        'days_delta': 3,
-        'title': l.eventPositiveTitle,
-        'description': l.eventPositiveDescription
-      },
-      {
-        'days_delta': -240,
-        'title': l.eventNegativeTitle,
-        'description': l.eventNegativeDescription
-      },
-    ];
-
-    for (final item in items) {
-      final doc = eventsRef.doc();
-      batch.set(doc, {
-        'title': item['title'],
-        'description': item['description'],
-        'days_delta': item['days_delta'],
-        'created_at': FieldValue.serverTimestamp(),
-        'source': 'system',
-        'read': false,
-        'applied': true,
+        if (eventId != null && eventId.isNotEmpty) {
+          tx.set(ref.collection('events').doc(eventId), {
+            'applied': true,
+            'old_target_date': oldDate.toIso8601String(),
+            'new_target_date': updated.toIso8601String(),
+            'applied_at': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        }
+        return updated;
       });
-    }
-    await batch.commit();
+      if (!mounted) return;
+      _targetDate = newDate;
+      _introAnimationDone = false;
+      _introEffectPlayedRows.clear();
+      _introMainSoundPlayed = false;
+      try { await _loadEvents(); } catch (e) { debugPrint('Events refresh: $e'); }
+      if (!mounted) return;
+      _startLifeCountdown();
+      unawaited(_playResultIntroEffect());
+      setState(() => _screenState = AppScreenState.result);
+    } catch (e) {
+      debugPrint('Recalculation transaction failed: $e');
+      if (mounted) {
+        setState(() => _screenState = AppScreenState.recalculateOffer);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Değişiklik kaydedilemedi. Tekrar deneyin.')),
+        );
+      }
+    } finally { _recalculationFinishing = false; }
   }
+
+
 
   Future<void> _loadEvents() async {
     if (_deviceKey == null) return;
@@ -1243,6 +1224,7 @@ try {
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
+          if (!mounted) { ad.dispose(); return; }
           debugPrint('Rewarded ad loaded successfully');
           _rewardedAd = ad;
           _rewardedAdReady = true;
@@ -1271,88 +1253,184 @@ try {
     );
   }
 
-  // KATILAŞTIRILMIŞ REKLAM İZLEME MANTIĞI (İZLEMEDEN TAMAMLAMAZ)
-  void _showRewardedAd({bool recalculate = false}) async {
-    final ad = _rewardedAd;
+void _resumeCalculationTimer({required bool recalculate}) {
+  if (!mounted) return;
 
-    if (ad == null || !_rewardedAdReady) {
-      debugPrint('Rewarded ad not ready yet');
-      _loadRewardedAd();
-      return;
+  _calculationTimer?.cancel();
+  _calculationTimer = null;
+
+  if (_calculationLeft <= 0) {
+    if (recalculate) {
+      unawaited(_finishRecalculation());
+    } else {
+      unawaited(_finishCalculation());
     }
+    return;
+  }
+
+  setState(() {
+    _screenState = recalculate
+        ? AppScreenState.recalculating
+        : AppScreenState.calculating;
+  });
+
+  _calculationTimer = Timer.periodic(
+    const Duration(seconds: 1),
+    (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      if (_soundEnabled) {
+        HapticFeedback.selectionClick();
+        SystemSound.play(SystemSoundType.click);
+      }
+
+      if (_calculationLeft <= 1) {
+        timer.cancel();
+        _calculationTimer = null;
+        _calculationLeft = 0;
+
+        if (recalculate) {
+          unawaited(_finishRecalculation());
+        } else {
+          unawaited(_finishCalculation());
+        }
+        return;
+      }
+
+      setState(() {
+        _calculationLeft--;
+      });
+    },
+  );
+}
+
+ 
+void _showRewardedAd({bool recalculate = false}) {
+  final ad = _rewardedAd;
+
+  if (ad == null || !_rewardedAdReady) {
+    debugPrint('Rewarded reklam hazır değil.');
+    _loadRewardedAd();
+    return;
+  }
+
+  // Yalnızca hesaplama ekranındayken reklam aç.
+  final expectedState = recalculate
+      ? AppScreenState.recalculating
+      : AppScreenState.calculating;
+
+  if (recalculate && _screenState == AppScreenState.recalculateOffer) {
+    if (_recalculationStarting || _recalculationFinishing) return;
+    _calculationLeft = calculationSeconds;
+    setState(() => _screenState = AppScreenState.recalculating);
+  } else if (_screenState != expectedState) {
+    return;
+  }
+  if (_rewardedShowing) return;
+  _rewardedShowing = true;
+
+  _rewardedAd = null;
+  _rewardedAdReady = false;
+
+  bool handled = false;
+  bool rewardEarned = false;
+
+  // Reklam süresince hesaplama tamamen durur.
+  _calculationTimer?.cancel();
+  _calculationTimer = null;
+
+  void completeAdFlow() {
+    if (handled) return;
+    handled = true;
+
+    if (!mounted) return;
+
+    if (rewardEarned) {
+      debugPrint('Ödül kazanıldı. Hesaplama tamamlanıyor.');
+
+      _calculationTimer?.cancel();
+      _calculationTimer = null;
+
+      if (recalculate) {
+        unawaited(_finishRecalculation());
+      } else {
+        unawaited(_finishCalculation());
+      }
+    } else {
+      debugPrint(
+        'Ödül kazanılmadı. Sayaç kaldığı yerden devam ediyor.',
+      );
+
+      _resumeCalculationTimer(recalculate: recalculate);
+    }
+  }
+
+  void cleanupAd() {
+    _rewardedShowing = false;
+    ad.dispose();
+
+    if (!mounted) return;
 
     _rewardedAd = null;
     _rewardedAdReady = false;
 
-    bool done = false;
-    bool rewardEarned = false;
-
-    // Reklam açıldığında normal hesaplama sayacını durdur.
-_calculationTimer?.cancel();
-_calculationTimer = null;
-
-    void finishNow() {
-      if (done) return;
-      done = true;
-
-      _calculationTimer?.cancel();
-
-      if (recalculate) {
-        _finishRecalculation();
-      } else {
-        _finishCalculation();
-      }
-    }
-
-    ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdShowedFullScreenContent: (ad) async {
-        await _pauseAllSounds();
-        _stopFlashEffect();
-      },
-      onAdDismissedFullScreenContent: (ad) {
-        ad.dispose();
-
-        _rewardedAd = null;
-        _rewardedAdReady = false;
-        _loadRewardedAd();
-
-        if (rewardEarned) {
-  finishNow();
-} else if (!done && mounted) {
-  if (recalculate) {
-    _startRecalculation();
-  } else {
-    _proceedToCalculatingTimer();
+    _loadRewardedAd();
+    _startRandomFlashEffect();
+    unawaited(_resumeAllSounds());
   }
-}
-        _startRandomFlashEffect();
-        _resumeAllSounds();
-      },
-      onAdFailedToShowFullScreenContent: (ad, error) {
-        ad.dispose();
 
-        _rewardedAd = null;
-        _rewardedAdReady = false;
-        _loadRewardedAd();
+  ad.fullScreenContentCallback = FullScreenContentCallback(
+    onAdShowedFullScreenContent: (ad) {
+      debugPrint('Rewarded reklam açıldı.');
 
-        _resumeAllSounds();
+      unawaited(_pauseAllSounds());
+      _stopFlashEffect();
+    },
 
-if (!done && mounted) {
-  if (recalculate) {
-    _startRecalculation();
-  } else {
-    _proceedToCalculatingTimer();
-  }
-}
-      },
-    );
+    onAdDismissedFullScreenContent: (ad) {
+      debugPrint('Rewarded reklam kapatıldı.');
 
+      cleanupAd();
+
+      // Yalnızca reklam kapandıktan sonra ilerle.
+      completeAdFlow();
+    },
+
+    onAdFailedToShowFullScreenContent: (ad, error) {
+      debugPrint('Rewarded gösterim hatası: $error');
+
+      cleanupAd();
+
+      // Reklam gösterilemedi, sayaç devam eder.
+      completeAdFlow();
+    },
+  );
+
+  try {
     ad.show(
-      onUserEarnedReward: (_, __) {
+      onUserEarnedReward: (_, reward) {
+        // Ödül kazanılması reklamın kapandığı anlamına gelmez.
         rewardEarned = true;
+
+        debugPrint(
+          'Rewarded ödül kazanıldı: ${reward.amount}',
+        );
+
+        // Burada hesaplama kesinlikle başlatılmaz.
+        // Reklamın kapanması beklenir.
       },
     );
+  } catch (e) {
+    debugPrint('Rewarded show exception: $e');
+
+    cleanupAd();
+    completeAdFlow();
   }
+}
+
 
   @override
   Widget build(BuildContext context) {
@@ -1416,7 +1494,7 @@ if (!done && mounted) {
                 child: GestureDetector(
                   behavior: HitTestBehavior.translucent,
                   onTap: () => setState(() => _menuOpen = false),
-                  child: Container(color: Colors.black.withOpacity(0.85)),
+                  child: Container(color: Colors.black.withValues(alpha: 0.85)),
                 ),
               ),
             if (_menuOpen)
@@ -1920,9 +1998,9 @@ if (!done && mounted) {
         height: 60,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: Colors.black.withOpacity(0.7),
+          color: Colors.black.withValues(alpha: 0.7),
           border: Border.all(
-            color: Colors.grey.withOpacity(0.35),
+            color: Colors.grey.withValues(alpha: 0.35),
             width: 1.5,
           ),
         ),
@@ -2230,7 +2308,7 @@ if (!done && mounted) {
                     ? 'https://play.google.com/store/apps/details?id=com.gerisayim.app'
                     : 'https://apps.apple.com/app/idXXXXXXXX';
 
-                Share.share('${l.shareDefaultText}\n$appLink');
+                SharePlus.instance.share(ShareParams(text: '${l.shareDefaultText}\n$appLink'));
               },
             ),
           ],
@@ -2274,17 +2352,18 @@ if (!done && mounted) {
       final file = File('${dir.path}/gerisayim_counter.png');
       await file.writeAsBytes(bytes);
 
+      if (!mounted) return;
       final l = AppLocalizations.of(context)!;
 
       final RenderBox? box = context.findRenderObject() as RenderBox?;
       final Rect? sharePositionOrigin =
           box != null ? (box.localToGlobal(Offset.zero) & box.size) : null;
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
         text: l.shareDefaultText,
         sharePositionOrigin: sharePositionOrigin,
-      );
+      ));
     } catch (e) {
       debugPrint('Share screenshot error: $e');
     }
@@ -2454,7 +2533,7 @@ class _GlitchTextState extends State<GlitchText> {
           child: Text(
             widget.text,
             textAlign: TextAlign.center,
-            style: widget.style.copyWith(color: Colors.redAccent.withOpacity(0.75)),
+            style: widget.style.copyWith(color: Colors.redAccent.withValues(alpha: 0.75)),
           ),
         ),
         Transform.translate(
@@ -2462,7 +2541,7 @@ class _GlitchTextState extends State<GlitchText> {
           child: Text(
             widget.text,
             textAlign: TextAlign.center,
-            style: widget.style.copyWith(color: Colors.cyanAccent.withOpacity(0.75)),
+            style: widget.style.copyWith(color: Colors.cyanAccent.withValues(alpha: 0.75)),
           ),
         ),
         Text(widget.text, textAlign: TextAlign.center, style: widget.style),
@@ -2520,7 +2599,7 @@ class _GlitchNumberState extends State<GlitchNumber> {
               widget.text,
               textAlign: TextAlign.right,
               style: widget.style.copyWith(
-                color: Colors.redAccent.withOpacity(0.6),
+                color: Colors.redAccent.withValues(alpha: 0.6),
               ),
             ),
           ),
@@ -2530,7 +2609,7 @@ class _GlitchNumberState extends State<GlitchNumber> {
               widget.text,
               textAlign: TextAlign.right,
               style: widget.style.copyWith(
-                color: Colors.cyanAccent.withOpacity(0.6),
+                color: Colors.cyanAccent.withValues(alpha: 0.6),
               ),
             ),
           ),
