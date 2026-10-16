@@ -26,20 +26,18 @@ import 'package:gerisayim/l10n/app_localizations.dart';
 final FlutterLocalNotificationsPlugin localNotifications =
     FlutterLocalNotificationsPlugin();
 
-    Future<void> _clearNotificationBadge() async {
+   
+Future<void> _clearNotificationBadge() async {
   if (!Platform.isIOS) return;
 
   try {
-    await localNotifications
-        .resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>()
-        ?.cancelAllNotifications();
-
+    await localNotifications.cancelAll();
     debugPrint('iOS bildirimleri temizlendi');
   } catch (e) {
     debugPrint('Bildirim temizleme hatası: $e');
   }
 }
+
 
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
