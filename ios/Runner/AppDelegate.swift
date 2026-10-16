@@ -1,3 +1,4 @@
+
 import Flutter
 import UIKit
 import UserNotifications
@@ -13,10 +14,29 @@ import UserNotifications
     // iPhone'u APNs'e kaydet
     application.registerForRemoteNotifications()
 
+    // Uygulama açıldığında bildirim rozetini sıfırla
+    clearBadge()
+
+    // Flutter üzerinden rozet sıfırlama
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(clearBadge),
+      name: UIApplication.didBecomeActiveNotification,
+      object: nil
+    )
+
     return super.application(
       application,
       didFinishLaunchingWithOptions: launchOptions
     )
+  }
+
+  @objc private func clearBadge() {
+    if #available(iOS 16.0, *) {
+      UNUserNotificationCenter.current().setBadgeCount(0)
+    } else {
+      UIApplication.shared.applicationIconBadgeNumber = 0
+    }
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {

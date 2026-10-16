@@ -26,6 +26,21 @@ import 'package:gerisayim/l10n/app_localizations.dart';
 final FlutterLocalNotificationsPlugin localNotifications =
     FlutterLocalNotificationsPlugin();
 
+    Future<void> _clearNotificationBadge() async {
+  if (!Platform.isIOS) return;
+
+  try {
+    await localNotifications
+        .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin>()
+        ?.cancelAllNotifications();
+
+    debugPrint('iOS bildirimleri temizlendi');
+  } catch (e) {
+    debugPrint('Bildirim temizleme hatası: $e');
+  }
+}
+
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
@@ -386,30 +401,47 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     } catch (_) {}
   }
 
-  void _startRandomFlashEffect() {
-    _flashTimer?.cancel();
-    final r = Random.secure();
+  
+bool _flashBusy = false;
 
-    _flashTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
-      if (!mounted) return;
+void _startRandomFlashEffect() {
+  _flashTimer?.cancel();
+  final r = Random();
 
-      if (r.nextInt(100) > 55) return;
+  _flashTimer = Timer.periodic(
+    const Duration(milliseconds: 1200),
+    (_) async {
+      if (!mounted || _flashBusy) return;
+      if (r.nextInt(100) >= 70) return;
+
+      _flashBusy = true;
 
       try {
-        final count = 2 + r.nextInt(5);
+        final count = 2 + r.nextInt(3);
 
         for (int i = 0; i < count; i++) {
+          if (!mounted || !_flashTimer!.isActive) break;
+
           await TorchLight.enableTorch();
-          await Future.delayed(Duration(milliseconds: 40 + r.nextInt(90)));
+          await Future.delayed(
+            Duration(milliseconds: 80 + r.nextInt(70)),
+          );
 
           await TorchLight.disableTorch();
-          await Future.delayed(Duration(milliseconds: 40 + r.nextInt(120)));
+          await Future.delayed(
+            Duration(milliseconds: 100 + r.nextInt(100)),
+          );
         }
       } catch (e) {
         debugPrint('Flash error: $e');
+      } finally {
+        await _turnFlashOff();
+        _flashBusy = false;
       }
-    });
-  }
+    },
+  );
+}
+
 
   Future<void> _pauseAllSounds() async {
     _soundEnabled = false;
@@ -615,6 +647,7 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
 
 Future<void> _openRecalculateOffer() async {
   if (!mounted) return;
+  await _clearNotificationBadge();
 
   // Cihaz bilgisi henüz yüklenmediyse işlem yapma.
   if (_deviceKey == null || !_initialRouteResolved) {
@@ -809,6 +842,7 @@ Future<void> _checkSurveyConfig() async {
   }
 
   Future<void> _initApp() async {
+     await _clearNotificationBadge();
     try {
       User? user = FirebaseAuth.instance.currentUser;
       user ??= (await FirebaseAuth.instance.signInAnonymously()).user;
