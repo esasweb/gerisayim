@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "gerisayim",
-      "version": "1.0.28+28",
+      "version": "1.0.30+30",
       "dependencies": [
         "audioplayers",
         "cloud_firestore",

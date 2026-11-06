@@ -643,15 +643,155 @@ void _showInterstitialThenProceed(VoidCallback onDone) {
   }
 
 
+Future<DateTime?> _applyPendingFate48Events() async {
+  if (_deviceKey == null) return null;
+
+  final userRef = FirebaseFirestore.instance
+      .collection('users')
+      .doc(_deviceKey);
+
+  // Gönderilmiş ve uygulanmamış olayları bul.
+  final eventsSnapshot = await userRef
+      .collection('events')
+      .where('applied', isEqualTo: false)
+      .get();
+
+  final pending = eventsSnapshot.docs.where((doc) {
+    final data = doc.data();
+    return data['source'] == 'fate48_cron' &&
+        data['send_status'] == 'sent';
+  }).toList();
+
+  pending.sort((a, b) {
+    final aPeriod = (a.data()['period'] as num?)?.toInt() ?? 0;
+    final bPeriod = (b.data()['period'] as num?)?.toInt() ?? 0;
+    return aPeriod.compareTo(bPeriod);
+  });
+
+  return FirebaseFirestore.instance
+      .runTransaction<DateTime?>((tx) async {
+    final userSnap = await tx.get(userRef);
+    final user = userSnap.data() ?? {};
+
+    final rawTarget = user['target_date'];
+    DateTime? target =
+        DateTime.tryParse('${rawTarget ?? ''}');
+
+    if (target == null) return null;
+
+    // Transaction içindeki bütün okumalar yazmalardan önce.
+    final eventSnaps = <DocumentSnapshot<Map<String, dynamic>>>[];
+
+    for (final event in pending) {
+      eventSnaps.add(await tx.get(event.reference));
+    }
+
+    bool changed = false;
+
+    for (final eventSnap in eventSnaps) {
+      if (!eventSnap.exists) continue;
+
+      final data = eventSnap.data() ?? {};
+      if (data['applied'] == true ||
+          data['send_status'] != 'sent' ||
+          data['source'] != 'fate48_cron') {
+        continue;
+      }
+
+      final delta =
+          num.tryParse('${data['delta_minutes'] ?? 0}')
+                  ?.toInt() ??
+              0;
+
+      final oldTarget = target!;
+      target = oldTarget.add(Duration(minutes: delta));
+
+      tx.set(eventSnap.reference, {
+        'applied': true,
+        'applied_at': FieldValue.serverTimestamp(),
+        'old_target_date': oldTarget.toIso8601String(),
+        'new_target_date': target!.toIso8601String(),
+      }, SetOptions(merge: true));
+
+      changed = true;
+    }
+
+    if (changed) {
+      tx.set(userRef, {
+        'target_date': target!.toIso8601String(),
+        'recalc_required': false,
+        'active_event_seen': true,
+        'active_event_seen_at': FieldValue.serverTimestamp(),
+        'updated_at': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    return target;
+  });
+}
+
+Future<void> _openDirectResult() async {
+  if (!mounted || _deviceKey == null) return;
+
+  try {
+    final updated = await _applyPendingFate48Events();
+
+    if (!mounted) return;
+
+    if (updated == null) {
+      setState(() => _screenState = AppScreenState.start);
+      return;
+    }
+
+    _targetDate = updated;
+
+    await _loadEvents();
+
+    if (!mounted) return;
+
+    _introAnimationDone = false;
+    _introFinishScheduled = false;
+    _introEffectPlayedRows.clear();
+    _introMainSoundPlayed = false;
+
+    _startLifeCountdown();
+    _playResultIntroEffect();
+
+    setState(() {
+      _screenState = AppScreenState.result;
+    });
+ 
+} catch (e) {
+  debugPrint('Fate48 otomatik uygulama hatası: $e');
+
+  if (!mounted) return;
+
+  setState(() {
+    _screenState = AppScreenState.start;
+  });
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Connection error. Please try again.'),
+    ),
+  );
+}
+}
+
+
+
+
+
 Future<void> _openRecalculateOffer() async {
   if (!mounted) return;
+
   await _clearNotificationBadge();
 
-  // Cihaz bilgisi henüz yüklenmediyse işlem yapma.
   if (_deviceKey == null || !_initialRouteResolved) {
     _pendingNotificationOpen = true;
     return;
   }
+
   if (_notificationOfferOpening) return;
   _notificationOfferOpening = true;
 
@@ -664,41 +804,25 @@ Future<void> _openRecalculateOffer() async {
     if (!mounted) return;
 
     final data = userDoc.data() ?? {};
-    final targetDate = data['target_date'];
+    final target = DateTime.tryParse(
+        '${data['target_date'] ?? ''}');
 
-    // İLK HESAPLAMA YAPILMAMIŞSA
-    // Geçiş reklamı gösterme.
-    if (targetDate == null ||
-        targetDate.toString().trim().isEmpty) {
-      debugPrint(
-        'İlk hesaplama yapılmamış. Geçiş reklamı atlandı.',
-      );
-
-      setState(() {
-        _screenState = AppScreenState.start;
-      });
+    if (target == null) {
+      setState(() => _screenState = AppScreenState.start);
       return;
     }
 
-    // Kullanıcının daha önce hesaplaması var.
-    await _loadEvents();
-    if (!mounted) return;
-
-    // Geçiş reklamı varsa göster.
-    // Reklam kapandıktan sonra önemli gelişme ekranını aç.
+    // Önce reklam, kapanınca otomatik kader değişimi ve sayaç.
     _showInterstitialThenProceed(() {
-      if (!mounted) return;
-
-      setState(() {
-        _screenState = AppScreenState.recalculateOffer;
-      });
+      unawaited(_openDirectResult());
     });
   } catch (e) {
-    debugPrint('Önemli gelişme ekranı hatası: $e');
+    debugPrint('Bildirim açılış hatası: $e');
   } finally {
     _notificationOfferOpening = false;
   }
 }
+
 
 
   // === DÜZELTME: Firestore'dan 'sayim' değeri güvenilir şekilde okunuyor ===
@@ -842,12 +966,19 @@ Future<void> _checkSurveyConfig() async {
   Future<void> _initApp() async {
      await _clearNotificationBadge();
     try {
-      User? user = FirebaseAuth.instance.currentUser;
-      user ??= (await FirebaseAuth.instance.signInAnonymously()).user;
-      if (user == null) throw Exception('Firebase user oluşturulamadı');
+    
+_deviceKey = await _getDeviceKey();
 
-      _uid = user.uid;
-      _deviceKey = await _getDeviceKey();
+try {
+  User? user = FirebaseAuth.instance.currentUser;
+  user ??= (await FirebaseAuth.instance.signInAnonymously()
+      .timeout(const Duration(seconds: 10))).user;
+
+  _uid = user?.uid;
+} catch (e) {
+  debugPrint('Firebase Auth hatası: $e');
+}
+
       final lang = PlatformDispatcher.instance.locale.languageCode;
 
       // Artık ilk frame çizildikten sonra çağrılıyor, dialog güvenle açılır.
@@ -954,29 +1085,7 @@ try {
        final freshDoc = await userRef.get().timeout(const Duration(seconds: 8));
       final data = freshDoc.data() ?? {};
 
-     if (data['recalc_required'] == true &&
-    data['active_event_seen'] != true) {
-
-  await userRef.set({
-    'active_event_seen': true,
-    'active_event_seen_at': FieldValue.serverTimestamp(),
-  }, SetOptions(merge: true));
-
-  await _loadEvents();
-
-  if (!mounted) return;
-
-  // Kalan süre ekranını göstermeden önce reklamı aç.
-  _showInterstitialThenProceed(() {
-    if (!mounted) return;
-
-    setState(() {
-      _screenState = AppScreenState.recalculateOffer;
-    });
-  });
-
-  return;
-}
+     
 
       final targetDateRaw = data['target_date'];
       if (targetDateRaw != null && targetDateRaw.toString().isNotEmpty) {
@@ -992,19 +1101,9 @@ try {
            }
 
            _showInterstitialThenProceed(() {
-            _introAnimationDone = false;
-            _introFinishScheduled = false;
-            _introEffectPlayedRows.clear();
-            _introMainSoundPlayed = false;
-
-            _startLifeCountdown();
-
-            if (mounted) {
-              _playResultIntroEffect();
-              setState(() => _screenState = AppScreenState.result);
-            }
-          });
-          return;
+  unawaited(_openDirectResult());
+});
+return;
         }
       }
 
@@ -1043,32 +1142,76 @@ try {
     }
   }
 
-  Future<void> _startCalculation() async {
-    if (_deviceKey == null || _screenState != AppScreenState.start) return;
-    final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-    try {
-      final doc = await userRef.get();
+  
+Future<void> _startCalculation() async {
+  if (_screenState != AppScreenState.start) return;
+
+  debugPrint('HESAPLA BUTONUNA BASILDI');
+  debugPrint('DEVICE KEY: $_deviceKey');
+
+  if (_deviceKey == null) {
+    debugPrint('HATA: Device key bulunamadi');
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Connection error. Please try again.'),
+        ),
+      );
+    }
+    return;
+  }
+
+  final userRef = FirebaseFirestore.instance
+      .collection('users')
+      .doc(_deviceKey);
+
+  try {
+    final doc = await userRef.get()
+        .timeout(const Duration(seconds: 10));
+
+    if (!mounted) return;
+
+    final data = doc.data() ?? {};
+    final saved = DateTime.tryParse(
+      '${data['target_date'] ?? ''}',
+    );
+
+    if (saved != null) {
+      _targetDate = saved;
+      await _loadEvents();
       if (!mounted) return;
-      final data = doc.data() ?? {};
-      final saved = DateTime.tryParse('${data['target_date'] ?? ''}');
-      if (saved != null) {
-        _targetDate = saved;
-        _startLifeCountdown();
-        await _loadEvents();
-        if (mounted) setState(() => _screenState = AppScreenState.result);
-        return;
-      }
-      await _checkSurveyConfig();
-      if (!mounted) return;
-      if (_showSurveyConfig) {
-        setState(() { _surveyStep = 0; _screenState = AppScreenState.survey; });
-      } else {
-        await _proceedToCalculatingTimer();
-      }
-    } catch (e) {
-      debugPrint('Start calculation failed: $e');
+      _startLifeCountdown();
+      setState(() => _screenState = AppScreenState.result);
+      return;
+    }
+
+    await _checkSurveyConfig();
+    if (!mounted) return;
+
+    if (_showSurveyConfig) {
+      setState(() {
+        _surveyStep = 0;
+        _screenState = AppScreenState.survey;
+      });
+    } else {
+      await _proceedToCalculatingTimer();
+    }
+  } catch (e, st) {
+    debugPrint('HESAPLA HATASI: $e');
+    debugPrint('$st');
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Calculation could not start: $e'),
+          duration: const Duration(seconds: 6),
+        ),
+      );
     }
   }
+}
+
 
     Future<void> _proceedToCalculatingTimer() async {
     if (!mounted || _finishingCalculation) return;
@@ -1570,9 +1713,15 @@ void _showRewardedAd({bool recalculate = false}) {
           ),
         );
         break;
-      case AppScreenState.recalculateOffer:
-        child = _recalculateOfferUI(l);
-        break;
+      
+case AppScreenState.recalculateOffer:
+  child = const Center(
+    child: CircularProgressIndicator(
+      color: Colors.white,
+    ),
+  );
+  break;
+
       case AppScreenState.recalculating:
         child = _calculatingUI(l);
         break;
