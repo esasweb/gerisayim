@@ -48,16 +48,17 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // iOS Ses Kategorisi Ayarı (Sessiz modda bile çalması için)
-  final AudioContext audioContext = AudioContext(
-    iOS: AudioContextIOS(
-      category: AVAudioSessionCategory.playback,
-      options: {
-        AVAudioSessionOptions.mixWithOthers,
-        AVAudioSessionOptions.defaultToSpeaker,
-      },
-    ),
-    android: AudioContextAndroid(),
-  );
+final AudioContext audioContext = AudioContext(
+  iOS: AudioContextIOS(
+    category: AVAudioSessionCategory.playback,
+    options: {
+      AVAudioSessionOptions.mixWithOthers,
+    },
+  ),
+  android: AudioContextAndroid(
+  audioFocus: AndroidAudioFocus.none,
+),
+);
   AudioPlayer.global.setAudioContext(audioContext);
 
   try {
@@ -238,6 +239,7 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
   bool _initialRouteResolved = false;
   bool _pendingNotificationOpen = false;
   bool _notificationOfferOpening = false;
+  bool _notificationRetryScheduled = false;
   bool _interstitialLoading = false;
   bool _adFlowActive = false;
 
@@ -357,41 +359,81 @@ class _DeathCalculatorPageState extends State<DeathCalculatorPage>
     return 'unknown_${DateTime.now().millisecondsSinceEpoch}';
   }
 
-  Future<void> _playResultIntroEffect() async {
-    if (_introMainSoundPlayed) return;
+  
+Future<void> _playResultIntroEffect() async {
+  if (_introMainSoundPlayed) return;
 
-    _introMainSoundPlayed = true;
-    _introStartTime = DateTime.now();
+  _introMainSoundPlayed = true;
+  _introStartTime = DateTime.now();
 
-    try {
-      await _startPlayer.setPlayerMode(PlayerMode.mediaPlayer);
-      await _startPlayer.setReleaseMode(ReleaseMode.stop);
-      await _startPlayer.setVolume(1.0);
-      await _startPlayer.play(AssetSource('icon/start.mp3'));
-    } catch (e) {
-      debugPrint('Start sound error: $e');
+  try {
+    await _startPlayer.setAudioContext(
+      AudioContext(
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.playback,
+          options: {
+            AVAudioSessionOptions.mixWithOthers,
+          },
+        ),
+        android: AudioContextAndroid(
+          audioFocus: AndroidAudioFocus.none,
+        ),
+      ),
+    );
+
+    await _startPlayer.setPlayerMode(PlayerMode.mediaPlayer);
+    await _startPlayer.setReleaseMode(ReleaseMode.stop);
+    await _startPlayer.setVolume(1.0);
+    await _startPlayer.play(AssetSource('icon/start.mp3'));
+
+    // Efekt başladıktan sonra arka plan müziğini kontrol et.
+    if (mounted && _soundEnabled &&
+        _bgPlayer.state != PlayerState.playing) {
+      await _resumeAllSounds();
     }
-
-    try {
-      await TorchLight.enableTorch();
-      await Future.delayed(const Duration(milliseconds: 120));
-      await TorchLight.disableTorch();
-    } catch (_) {}
+  } catch (e) {
+    debugPrint('Start sound error: $e');
   }
 
-  Future<void> _startBackgroundMusic() async {
-    try {
-      await _bgPlayer.stop();
-      await _bgPlayer.setReleaseMode(ReleaseMode.loop);
-      await _bgPlayer.setVolume(1.0);
-      await _bgPlayer.play(
-        AssetSource('icon/back.mp3'),
-        mode: PlayerMode.mediaPlayer,
-      );
-    } catch (e) {
-      debugPrint('Music error: $e');
-    }
+  try {
+    await TorchLight.enableTorch();
+    await Future.delayed(const Duration(milliseconds: 120));
+    await TorchLight.disableTorch();
+  } catch (_) {}
+}
+
+
+
+Future<void> _startBackgroundMusic() async {
+  try {
+    await _bgPlayer.setAudioContext(
+      AudioContext(
+        iOS: AudioContextIOS(
+          category: AVAudioSessionCategory.playback,
+          options: {
+            AVAudioSessionOptions.mixWithOthers,
+          },
+        ),
+        android: AudioContextAndroid(
+          audioFocus: AndroidAudioFocus.none,
+        ),
+      ),
+    );
+
+    await _bgPlayer.setReleaseMode(ReleaseMode.loop);
+    await _bgPlayer.setVolume(1.0);
+
+    await _bgPlayer.play(
+      AssetSource('icon/back.mp3'),
+      mode: PlayerMode.mediaPlayer,
+    );
+
+    debugPrint('Arka plan müziği başlatıldı.');
+  } catch (e) {
+    debugPrint('Music error: $e');
   }
+}
+
 
   Future<void> _turnFlashOff() async {
     try {
@@ -448,23 +490,25 @@ void _startRandomFlashEffect() {
     } catch (_) {}
   }
 
-  Future<void> _resumeAllSounds() async {
-    _soundEnabled = true;
-    await Future.delayed(const Duration(milliseconds: 300));
+  
+Future<void> _resumeAllSounds() async {
+  if (!mounted) return;
 
-    try {
-      if (_bgPlayer.state == PlayerState.paused) {
-        await _bgPlayer.resume();
-      } else if (_bgPlayer.state != PlayerState.playing) {
-        await _bgPlayer.play(
-          AssetSource('icon/back.mp3'),
-          mode: PlayerMode.mediaPlayer,
-        );
-      }
-    } catch (e) {
-      debugPrint('Resume music error: $e');
+  try {
+    if (_bgPlayer.state == PlayerState.paused) {
+      await _bgPlayer.resume();
+    } else if (_bgPlayer.state != PlayerState.playing) {
+      await _startBackgroundMusic();
     }
+
+    _soundEnabled = true;
+    debugPrint('Arka plan muzigi devam ediyor.');
+  } catch (e) {
+    debugPrint('Muzik devam hatasi: $e');
+    _soundEnabled = true;
   }
+}
+
 
   void _loadInterstitialAd() {
     if (_interstitialLoading || _interstitialReady || !mounted) return;
@@ -759,7 +803,9 @@ Future<void> _openDirectResult() async {
 
     setState(() {
       _screenState = AppScreenState.result;
+      
     });
+   
  
 } catch (e) {
   debugPrint('Fate48 otomatik uygulama hatası: $e');
@@ -886,87 +932,154 @@ Future<void> _checkSurveyConfig() async {
   }
 }
 
+Future<void> _retryNotificationPermissionAfterResult() async {
+  if (_notificationRetryScheduled || !mounted) return;
 
-  Future<void> _askNotificationPermissionWithModal() async {
-    if (!mounted) return;
+  _notificationRetryScheduled = true;
 
-    final settings = await FirebaseMessaging.instance.getNotificationSettings()
+  try {
+    await Future.delayed(const Duration(seconds: 3));
+
+    if (!mounted || _screenState != AppScreenState.result) return;
+
+    await _askNotificationPermissionWithModal();
+  } catch (e) {
+    debugPrint('Bildirim tekrar izin hatası: $e');
+  } finally {
+    _notificationRetryScheduled = false;
+  }
+}
+
+
+
+
+
+Future<void> _askNotificationPermissionWithModal() async {
+  if (!mounted) return;
+
+  final prefs = await SharedPreferences.getInstance();
+
+  if (prefs.getBool('notification_permission_accepted') == true) {
+    return;
+  }
+
+  int? androidSdk;
+  if (Platform.isAndroid) {
+    final info = await DeviceInfoPlugin().androidInfo;
+    androidSdk = info.version.sdkInt;
+  }
+
+  final bool oldAndroid =
+      Platform.isAndroid && androidSdk != null && androidSdk < 33;
+
+
+// İlk hesaplama tamamlanmışsa tekrar izin sorma.
+if (prefs.getBool('notification_permission_prompt_shown') == true &&
+    prefs.getBool('first_calculation_completed') == true) {
+  return;
+}
+  
+
+  // Android 13+ ve iOS: sistem zaten izin vermişse tekrar sorma.
+  if (!oldAndroid) {
+    final settings = await FirebaseMessaging.instance
+        .getNotificationSettings()
         .timeout(const Duration(seconds: 5));
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized ||
         settings.authorizationStatus == AuthorizationStatus.provisional) {
+      await prefs.setBool('notification_permission_accepted', true);
       return;
     }
-
-    final l = AppLocalizations.of(context)!;
-
-    final bool? accepted = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: Colors.black,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(18),
-            side: const BorderSide(color: Colors.white24),
-          ),
-          title: Text(
-            l.notificationPermissionTitle,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          content: Text(
-            l.notificationPermissionText,
-            style: const TextStyle(
-              color: Colors.white70,
-              height: 1.45,
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(
-                l.notificationPermissionNo,
-                style: const TextStyle(color: Colors.white54),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
-              ),
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(l.notificationPermissionYes),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (accepted == true) {
-      await FirebaseMessaging.instance.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-
-      await localNotifications
-          .resolvePlatformSpecificImplementation<
-              IOSFlutterLocalNotificationsPlugin>()
-          ?.requestPermissions(
-            alert: true,
-            badge: true,
-            sound: true,
-          );
-    }
   }
+
+  if (!mounted) return;
+
+  final l = AppLocalizations.of(context)!;
+
+  final bool? accepted = await showDialog<bool>(
+    context: context,
+    barrierColor: Colors.black,
+    barrierDismissible: false,
+    builder: (dialogContext) {
+      return AlertDialog(
+        backgroundColor: Colors.black,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: Colors.white24),
+        ),
+        title: Text(
+          l.notificationPermissionTitle,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        content: Text(
+          l.notificationPermissionText,
+          style: const TextStyle(
+            color: Colors.white70,
+            height: 1.45,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(
+              l.notificationPermissionNo,
+              style: const TextStyle(color: Colors.white54),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(l.notificationPermissionYes),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (oldAndroid) {
+    await prefs.setBool('notification_permission_prompt_shown', true);
+    if (accepted == true) {
+      await prefs.setBool('notification_permission_accepted', true);
+    }
+    return;
+  }
+
+  if (accepted != true) {
+    // Kullanıcı reddederse, sonraki uygun fırsatta yeniden sorulabilir.
+    return;
+  }
+
+  final permission = await FirebaseMessaging.instance.requestPermission(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+
+  if (permission.authorizationStatus == AuthorizationStatus.authorized ||
+      permission.authorizationStatus == AuthorizationStatus.provisional) {
+    await prefs.setBool('notification_permission_accepted', true);
+  }
+}
+
+
+
+
 
   Future<void> _initApp() async {
      await _clearNotificationBadge();
     try {
     
+    unawaited(_askNotificationPermissionWithModal().catchError((Object e) {
+  debugPrint('Notification permission error: $e');
+}));
+
 _deviceKey = await _getDeviceKey();
 
 try {
@@ -983,9 +1096,7 @@ try {
 
       // Artık ilk frame çizildikten sonra çağrılıyor, dialog güvenle açılır.
        // İzin diyaloğu kullanıcıdan cevap bekleyebilir; açılışı bloke etme.
-       unawaited(_askNotificationPermissionWithModal().catchError((Object e) {
-         debugPrint('Notification permission error: $e');
-       }));
+      
 
    String? token;
 
@@ -1315,7 +1426,10 @@ Future<void> _startCalculation() async {
       _playResultIntroEffect();
       setState(() => _screenState = AppScreenState.result);
     }
+    final prefs = await SharedPreferences.getInstance();
+await prefs.setBool('first_calculation_completed', true);
     _finishingCalculation = false;
+
   }
 
  
@@ -1341,9 +1455,10 @@ Future<void> _startRecalculation() async {
     if (_deviceKey == null || _finishingCalculation || _adFlowActive) return;
     _finishingCalculation = true;
     _calculationTimer?.cancel();
-    final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
-    try {
-      final updated = await FirebaseFirestore.instance.runTransaction<DateTime>((tx) async {
+   try {
+  final userRef = FirebaseFirestore.instance.collection('users').doc(_deviceKey);
+
+  final updated = await FirebaseFirestore.instance.runTransaction<DateTime>((tx) async {
         final snap = await tx.get(userRef);
         final data = snap.data() ?? <String, dynamic>{};
         final oldTarget = DateTime.tryParse('${data['target_date'] ?? ''}');
@@ -1391,16 +1506,21 @@ Future<void> _startRecalculation() async {
       _startLifeCountdown();
       _playResultIntroEffect();
       setState(() => _screenState = AppScreenState.result);
-    } catch (e) {
-      debugPrint('Recalculation transaction failed: $e');
-      // Do not display an unsaved or incorrectly applied result.
-      if (mounted) setState(() => _screenState = AppScreenState.recalculateOffer);
-    } finally {
-      _finishingCalculation = false;
-    }
-  }
+      } catch (e, st) {
+  debugPrint('Recalculation transaction failed: $e');
+  debugPrint('$st');
 
-    Future<void> _createInitialEvents() async {
+  if (mounted) {
+    setState(() {
+      _screenState = AppScreenState.recalculateOffer;
+    });
+  }
+} finally {
+  _finishingCalculation = false;
+}
+}
+
+  Future<void> _createInitialEvents() async {
     if (_deviceKey == null) return;
     final l = AppLocalizations.of(context)!;
     final batch = FirebaseFirestore.instance.batch();
